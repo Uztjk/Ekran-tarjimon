@@ -158,6 +158,38 @@ export const PricingModal: React.FC<PricingModalProps> = ({
   );
   const [savingAdConfig, setSavingAdConfig] = useState(false);
   const [adConfigMessage, setAdConfigMessage] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [signingIn, setSigningIn] = useState(false);
+
+  const handleGoogleSignIn = async () => {
+    setAuthError(null);
+    setSigningIn(true);
+    try {
+      await signInWithGoogle();
+    } catch (err) {
+      const code =
+        err && typeof err === "object" && "code" in err
+          ? String((err as { code?: unknown }).code || "")
+          : "";
+      if (code.includes("popup-blocked")) {
+        setAuthError(
+          "Brauzer kirish oynasini blokladi. Ruxsat berib qayta bosing."
+        );
+      } else if (code.includes("unauthorized-domain")) {
+        setAuthError(
+          "Ushbu domen Firebase Authorized domains ro'yxatiga qo'shilmagan."
+        );
+      } else if (code.includes("popup-closed-by-user")) {
+        setAuthError("Kirish oynasi yopildi. Qayta urinib ko'ring.");
+      } else {
+        setAuthError(
+          "Google bilan kirib bo'lmadi. Ilovani Telegram ichida emas, oddiy Chrome brauzerida ochib ko'ring."
+        );
+      }
+    } finally {
+      setSigningIn(false);
+    }
+  };
 
   useEffect(() => {
     setAdsgramBlockIdInput(monetizationConfig.adsgramBlockId);
@@ -476,12 +508,22 @@ export const PricingModal: React.FC<PricingModalProps> = ({
             ) : (
               <button
                 type="button"
-                onClick={signInWithGoogle}
-                className="px-4 py-2 min-h-[40px] rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-semibold inline-flex items-center gap-2 cursor-pointer"
+                onClick={handleGoogleSignIn}
+                disabled={signingIn}
+                className="px-4 py-2 min-h-[40px] rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] disabled:opacity-50 text-white text-xs font-semibold inline-flex items-center gap-2 cursor-pointer"
               >
                 <LogIn className="w-4 h-4" />
-                <span>Google bilan kirish (+7 bepul limit)</span>
+                <span>
+                  {signingIn
+                    ? "Kirilmoqda..."
+                    : "Google bilan kirish (+7 bepul limit)"}
+                </span>
               </button>
+            )}
+            {authError && (
+              <p className="w-full text-xs font-medium text-rose-600 dark:text-rose-400">
+                {authError}
+              </p>
             )}
           </div>
 

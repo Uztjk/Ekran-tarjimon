@@ -870,6 +870,49 @@ ${text.trim()}
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`EkranTarjimon server listening on http://0.0.0.0:${PORT}`);
+
+    if (process.env.NODE_ENV === "production") {
+      const prodToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
+      const prodBaseUrl = (
+        process.env.APP_URL?.trim() ||
+        process.env.RENDER_EXTERNAL_URL?.trim() ||
+        ""
+      ).replace(/\/$/, "");
+      if (prodToken && prodBaseUrl.startsWith("https://")) {
+        setTimeout(() => {
+          Promise.allSettled([
+            callTelegramMethod(prodToken, "setWebhook", {
+              url: `${prodBaseUrl}/api/telegram/webhook`,
+              allowed_updates: [
+                "pre_checkout_query",
+                "message",
+                "callback_query",
+              ],
+            }),
+            callTelegramMethod(prodToken, "setMyCommands", {
+              commands: [
+                { command: "start", description: "Ilovani ochish va boshlash" },
+                {
+                  command: "tarif",
+                  description: "Pro tariflar va bepul bonuslar",
+                },
+                {
+                  command: "yordam",
+                  description: "Qo'llanma va admin bilan aloqa",
+                },
+              ],
+            }),
+            callTelegramMethod(prodToken, "setChatMenuButton", {
+              menu_button: {
+                type: "web_app",
+                text: "Tarjimonni ochish",
+                web_app: { url: prodBaseUrl },
+              },
+            }),
+          ]).catch(() => {});
+        }, 2500);
+      }
+    }
   });
 }
 

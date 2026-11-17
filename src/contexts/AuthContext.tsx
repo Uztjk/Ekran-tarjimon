@@ -55,7 +55,7 @@ export const MAX_AD_REWARDS_PER_DAY = 5;
 
 export const DEFAULT_MONETIZATION_CONFIG: MonetizationConfig = {
   id: "monetization",
-  adsgramBlockId: "77602",
+  adsgramBlockId: "int-60310",
   sponsorActive: true,
   sponsorTitle: "Reklama va hamkorlik o'rni",
   sponsorDescription:
@@ -708,7 +708,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (!isAdmin) {
         throw new Error("Faqat admin o'zgartira oladi.");
       }
-      const cleanBlockId = next.adsgramBlockId.trim().slice(0, 64) || "77602";
+      const cleanBlockId = next.adsgramBlockId.trim().slice(0, 64) || "int-60310";
       const cleanTitle = next.sponsorTitle.trim().slice(0, 80);
       const cleanDesc = next.sponsorDescription.trim().slice(0, 180);
       const cleanCta = next.sponsorCtaLabel.trim().slice(0, 40);

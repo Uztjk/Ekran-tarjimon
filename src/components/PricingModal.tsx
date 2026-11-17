@@ -323,7 +323,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
     setSavingAdConfig(true);
     try {
       await saveMonetizationConfig({
-        adsgramBlockId: adsgramBlockIdInput.trim() || "77602",
+        adsgramBlockId: adsgramBlockIdInput.trim() || "int-60310",
         sponsorActive: sponsorActiveInput,
         sponsorTitle: sponsorTitleInput.trim(),
         sponsorDescription: sponsorDescriptionInput.trim(),
@@ -615,7 +615,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                       maxLength={64}
                       value={adsgramBlockIdInput}
                       onChange={(e) => setAdsgramBlockIdInput(e.target.value)}
-                      placeholder="77602"
+                      placeholder="int-60310"
                       className="w-full px-3 py-2 min-h-[38px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
                     />
                   </div>
@@ -762,7 +762,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                 })}
               </div>
 
-              {/* Rewarded Ad Card (Adsgram 77602) */}
+              {/* Rewarded / Interstitial Ad Card (Adsgram int-60310) */}
               {!isPro && (
                 <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0F1521] p-4 flex flex-wrap items-center justify-between gap-3">
                   <div className="space-y-1 min-w-0 flex-1">

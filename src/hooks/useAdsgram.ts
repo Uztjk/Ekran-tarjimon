@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export const DEFAULT_ADSGRAM_BLOCK_ID =
   (import.meta.env.VITE_ADSGRAM_BLOCK_ID as string | undefined)?.trim() ||
-  "77602";
+  "int-60310";
 
 interface AdsgramShowResult {
   done: boolean;
@@ -93,7 +93,8 @@ export function useAdsgram(
   onRewardEarned: () => Promise<void> | void,
   customBlockId?: string
 ) {
-  const activeBlockId = (customBlockId || DEFAULT_ADSGRAM_BLOCK_ID).trim() || "77602";
+  const activeBlockId =
+    (customBlockId || DEFAULT_ADSGRAM_BLOCK_ID).trim() || "int-60310";
   const controllerRef = useRef<{ blockId: string; instance: AdsgramController } | null>(
     null
   );

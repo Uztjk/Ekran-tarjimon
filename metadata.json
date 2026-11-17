@@ -1,0 +1,6 @@
+{
+  "name": "EkranTarjimon",
+  "description": "Telefon ekrani, skrinshot va jonli tasvirlardagi matnlarni bir zumda o'zbek va boshqa tillarga ustma-ust tarjima qiluvchi ilova.",
+  "requestFramePermissions": ["camera", "display-capture"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

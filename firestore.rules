@@ -1,0 +1,417 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reusable Hardened Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'dsavkat771@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Entity Validators
+    function isValidUserQuota(data) {
+      return data.keys().hasAll([
+        'uid',
+        'displayName',
+        'plan',
+        'dailyUsed',
+        'bonusCredits',
+        'totalTranslations',
+        'lastResetDate',
+        'preferredTargetLang',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'uid',
+        'displayName',
+        'plan',
+        'dailyUsed',
+        'bonusCredits',
+        'totalTranslations',
+        'lastResetDate',
+        'preferredTargetLang',
+        'referredBy',
+        'referralCount',
+        'lastClaimedReferralId',
+        'adRewardsToday',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      isValidId(data.uid) &&
+      data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+      data.plan in ['free', 'pro'] &&
+      data.dailyUsed is int && data.dailyUsed >= 0 && data.dailyUsed <= 500 &&
+      data.bonusCredits is int && data.bonusCredits >= 0 && data.bonusCredits <= 10000 &&
+      data.totalTranslations is int && data.totalTranslations >= 0 && data.totalTranslations <= 100000 &&
+      data.lastResetDate is string && data.lastResetDate.size() == 10 && data.lastResetDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+      data.preferredTargetLang is string && data.preferredTargetLang.size() >= 2 && data.preferredTargetLang.size() <= 12 &&
+      (!('referredBy' in data) || (data.referredBy is string && data.referredBy.size() <= 128 && (data.referredBy == '' || isValidId(data.referredBy)))) &&
+      (!('referralCount' in data) || (data.referralCount is int && data.referralCount >= 0 && data.referralCount <= 10000)) &&
+      (!('lastClaimedReferralId' in data) || isValidId(data.lastClaimedReferralId)) &&
+      (!('adRewardsToday' in data) || (data.adRewardsToday is int && data.adRewardsToday >= 0 && data.adRewardsToday <= 5)) &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidReferral(data) {
+      return data.keys().hasAll([
+        'id',
+        'referrerId',
+        'referredUserId',
+        'referredUserName',
+        'rewardCredits',
+        'claimed',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id',
+        'referrerId',
+        'referredUserId',
+        'referredUserName',
+        'rewardCredits',
+        'claimed',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      isValidId(data.id) &&
+      isValidId(data.referrerId) &&
+      isValidId(data.referredUserId) &&
+      data.referredUserName is string && data.referredUserName.size() >= 1 && data.referredUserName.size() <= 100 &&
+      data.rewardCredits is int && data.rewardCredits == 10 &&
+      data.claimed is bool &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidTranslationLog(data) {
+      return data.keys().hasAll([
+        'id',
+        'userId',
+        'title',
+        'nicheMode',
+        'sourceLang',
+        'targetLang',
+        'detectedLanguage',
+        'summary',
+        'blockCount',
+        'previewLines',
+        'createdAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id',
+        'userId',
+        'title',
+        'nicheMode',
+        'sourceLang',
+        'targetLang',
+        'detectedLanguage',
+        'summary',
+        'blockCount',
+        'previewLines',
+        'createdAt'
+      ]) &&
+      isValidId(data.id) &&
+      isValidId(data.userId) &&
+      data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+      data.nicheMode in ['general', 'ecommerce', 'finance', 'travel'] &&
+      data.sourceLang is string && data.sourceLang.size() >= 2 && data.sourceLang.size() <= 12 &&
+      data.targetLang is string && data.targetLang.size() >= 2 && data.targetLang.size() <= 12 &&
+      data.detectedLanguage is string && data.detectedLanguage.size() >= 1 && data.detectedLanguage.size() <= 60 &&
+      data.summary is string && data.summary.size() <= 500 &&
+      data.blockCount is int && data.blockCount >= 0 && data.blockCount <= 500 &&
+      data.previewLines is list && data.previewLines.size() <= 10 &&
+      (data.previewLines.size() == 0 || (data.previewLines[0] is string && data.previewLines[0].size() <= 300)) &&
+      data.createdAt is timestamp;
+    }
+
+    function isValidPaymentRequest(data) {
+      return data.keys().hasAll([
+        'id',
+        'userId',
+        'userName',
+        'planRequested',
+        'paymentMethod',
+        'amountUsd',
+        'status',
+        'note',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id',
+        'userId',
+        'userName',
+        'planRequested',
+        'paymentMethod',
+        'amountUsd',
+        'status',
+        'note',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      isValidId(data.id) &&
+      isValidId(data.userId) &&
+      data.userName is string && data.userName.size() >= 1 && data.userName.size() <= 100 &&
+      data.planRequested in ['pro_monthly', 'pro_yearly', 'pack_100'] &&
+      data.paymentMethod in [
+        'spitamen_bank',
+        'dcity',
+        'alif_bank',
+        'tajikistan_cards',
+        'telegram_stars',
+        'visa_mastercard'
+      ] &&
+      data.amountUsd is number && data.amountUsd >= 1 && data.amountUsd <= 10000 &&
+      data.status in ['pending', 'approved', 'rejected'] &&
+      data.note is string && data.note.size() <= 240 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidMonetizationConfig(data) {
+      return data.keys().hasAll([
+        'id',
+        'adsgramBlockId',
+        'sponsorActive',
+        'sponsorTitle',
+        'sponsorDescription',
+        'sponsorCtaLabel',
+        'sponsorUrl',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id',
+        'adsgramBlockId',
+        'sponsorActive',
+        'sponsorTitle',
+        'sponsorDescription',
+        'sponsorCtaLabel',
+        'sponsorUrl',
+        'updatedAt'
+      ]) &&
+      data.id == 'monetization' &&
+      data.adsgramBlockId is string && data.adsgramBlockId.size() >= 1 && data.adsgramBlockId.size() <= 64 &&
+      data.sponsorActive is bool &&
+      data.sponsorTitle is string && data.sponsorTitle.size() <= 80 &&
+      data.sponsorDescription is string && data.sponsorDescription.size() <= 180 &&
+      data.sponsorCtaLabel is string && data.sponsorCtaLabel.size() <= 40 &&
+      data.sponsorUrl is string && data.sponsorUrl.size() <= 300 && (data.sponsorUrl == '' || data.sponsorUrl.matches('^https://.*')) &&
+      data.updatedAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow get: if isVerifiedUser() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isVerifiedUser() &&
+        isValidId(userId) &&
+        request.auth.uid == userId &&
+        isValidUserQuota(incoming()) &&
+        incoming().uid == userId &&
+        incoming().plan == 'free' &&
+        incoming().dailyUsed == 0 &&
+        incoming().totalTranslations == 0 &&
+        (!('referralCount' in incoming()) || incoming().referralCount == 0) &&
+        (!('lastClaimedReferralId' in incoming())) &&
+        (!('adRewardsToday' in incoming()) || incoming().adRewardsToday == 0) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (
+          ((!('referredBy' in incoming()) || incoming().referredBy == '') && incoming().bonusCredits == 0) ||
+          (
+            ('referredBy' in incoming()) &&
+            incoming().referredBy != '' &&
+            incoming().referredBy != userId &&
+            incoming().bonusCredits == 5 &&
+            exists(/databases/$(database)/documents/users/$(incoming().referredBy)) &&
+            existsAfter(/databases/$(database)/documents/referrals/$(userId))
+          )
+        );
+
+      allow update: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isValidUserQuota(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            request.auth.uid == userId &&
+            incoming().plan == existing().plan &&
+            (!('referredBy' in existing()) || incoming().referredBy == existing().referredBy) &&
+            (
+              (
+                incoming().diff(existing()).affectedKeys().hasOnly([
+                  'dailyUsed',
+                  'bonusCredits',
+                  'totalTranslations',
+                  'lastResetDate',
+                  'updatedAt'
+                ]) &&
+                incoming().bonusCredits <= existing().bonusCredits &&
+                incoming().totalTranslations >= existing().totalTranslations
+              ) ||
+              incoming().diff(existing()).affectedKeys().hasOnly([
+                'preferredTargetLang',
+                'displayName',
+                'updatedAt'
+              ]) ||
+              (
+                incoming().diff(existing()).affectedKeys().hasOnly([
+                  'bonusCredits',
+                  'referralCount',
+                  'lastClaimedReferralId',
+                  'updatedAt'
+                ]) &&
+                ('lastClaimedReferralId' in incoming()) &&
+                isValidId(incoming().lastClaimedReferralId) &&
+                incoming().lastClaimedReferralId != userId &&
+                incoming().bonusCredits == existing().bonusCredits + 10 &&
+                (
+                  (!('referralCount' in existing()) && incoming().referralCount == 1) ||
+                  ('referralCount' in existing() && incoming().referralCount == existing().referralCount + 1)
+                ) &&
+                get(/databases/$(database)/documents/referrals/$(incoming().lastClaimedReferralId)).data.referrerId == request.auth.uid &&
+                get(/databases/$(database)/documents/referrals/$(incoming().lastClaimedReferralId)).data.claimed == false &&
+                getAfter(/databases/$(database)/documents/referrals/$(incoming().lastClaimedReferralId)).data.claimed == true
+              ) ||
+              (
+                incoming().diff(existing()).affectedKeys().hasOnly([
+                  'bonusCredits',
+                  'adRewardsToday',
+                  'lastResetDate',
+                  'updatedAt'
+                ]) &&
+                incoming().bonusCredits == existing().bonusCredits + 2 &&
+                incoming().adRewardsToday >= 1 &&
+                incoming().adRewardsToday <= 5 &&
+                (
+                  (incoming().lastResetDate != existing().lastResetDate && incoming().adRewardsToday == 1) ||
+                  (
+                    incoming().lastResetDate == existing().lastResetDate &&
+                    (
+                      (!('adRewardsToday' in existing()) && incoming().adRewardsToday == 1) ||
+                      ('adRewardsToday' in existing() && incoming().adRewardsToday == existing().adRewardsToday + 1)
+                    )
+                  )
+                )
+              )
+            )
+          )
+        );
+
+      match /translations/{translationId} {
+        allow get: if isVerifiedUser() && isValidId(userId) && isValidId(translationId) && request.auth.uid == userId;
+        allow list: if isVerifiedUser() && isValidId(userId) && request.auth.uid == userId && resource.data.userId == request.auth.uid;
+        allow create: if isVerifiedUser() &&
+          isValidId(userId) &&
+          isValidId(translationId) &&
+          request.auth.uid == userId &&
+          isValidTranslationLog(incoming()) &&
+          incoming().id == translationId &&
+          incoming().userId == request.auth.uid &&
+          incoming().createdAt == request.time &&
+          exists(/databases/$(database)/documents/users/$(userId));
+        allow delete: if isVerifiedUser() && isValidId(userId) && isValidId(translationId) && request.auth.uid == userId;
+      }
+    }
+
+    match /referrals/{referralId} {
+      allow get: if isVerifiedUser() && isValidId(referralId) && (resource.data.referrerId == request.auth.uid || resource.data.referredUserId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.referrerId == request.auth.uid || resource.data.referredUserId == request.auth.uid);
+      allow create: if isVerifiedUser() &&
+        isValidId(referralId) &&
+        referralId == request.auth.uid &&
+        isValidReferral(incoming()) &&
+        incoming().id == referralId &&
+        incoming().referredUserId == request.auth.uid &&
+        incoming().referrerId != request.auth.uid &&
+        incoming().rewardCredits == 10 &&
+        incoming().claimed == false &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/users/$(incoming().referrerId)) &&
+        existsAfter(/databases/$(database)/documents/users/$(request.auth.uid));
+      allow update: if isVerifiedUser() &&
+        isValidId(referralId) &&
+        isValidReferral(incoming()) &&
+        existing().referrerId == request.auth.uid &&
+        existing().claimed == false &&
+        incoming().claimed == true &&
+        incoming().id == existing().id &&
+        incoming().referrerId == existing().referrerId &&
+        incoming().referredUserId == existing().referredUserId &&
+        incoming().referredUserName == existing().referredUserName &&
+        incoming().rewardCredits == existing().rewardCredits &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['claimed', 'updatedAt']) &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.lastClaimedReferralId == referralId;
+    }
+
+    match /paymentRequests/{requestId} {
+      allow get: if isVerifiedUser() && isValidId(requestId) && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() &&
+        isValidId(requestId) &&
+        isValidPaymentRequest(incoming()) &&
+        incoming().id == requestId &&
+        incoming().userId == request.auth.uid &&
+        incoming().status == 'pending' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isAdmin() &&
+        isValidId(requestId) &&
+        isValidPaymentRequest(incoming()) &&
+        existing().status == 'pending' &&
+        incoming().id == existing().id &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+    }
+
+    match /appConfig/{configId} {
+      allow get: if isValidId(configId) && configId == 'monetization';
+      allow create: if isAdmin() &&
+        isValidId(configId) &&
+        configId == 'monetization' &&
+        isValidMonetizationConfig(incoming()) &&
+        incoming().updatedAt == request.time;
+      allow update: if isAdmin() &&
+        isValidId(configId) &&
+        configId == 'monetization' &&
+        isValidMonetizationConfig(incoming()) &&
+        incoming().updatedAt == request.time;
+    }
+  }
+}

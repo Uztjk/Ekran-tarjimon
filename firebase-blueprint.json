@@ -1,0 +1,359 @@
+{
+  "entities": {
+    "UserQuota": {
+      "title": "UserQuota",
+      "description": "Tracks user subscription tier, daily translation quota, referral counts, and bonus credits.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "plan": {
+          "type": "string",
+          "enum": ["free", "pro"]
+        },
+        "dailyUsed": {
+          "type": "integer"
+        },
+        "bonusCredits": {
+          "type": "integer"
+        },
+        "totalTranslations": {
+          "type": "integer"
+        },
+        "lastResetDate": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "preferredTargetLang": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 12
+        },
+        "referredBy": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "referralCount": {
+          "type": "integer"
+        },
+        "lastClaimedReferralId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "adRewardsToday": {
+          "type": "integer"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "plan",
+        "dailyUsed",
+        "bonusCredits",
+        "totalTranslations",
+        "lastResetDate",
+        "preferredTargetLang",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Referral": {
+      "title": "Referral",
+      "description": "Atomic referral invitation record linking a newly registered user to their referrer for bonus credits.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "referrerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "referredUserId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "referredUserName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "rewardCredits": {
+          "type": "integer"
+        },
+        "claimed": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "referrerId",
+        "referredUserId",
+        "referredUserName",
+        "rewardCredits",
+        "claimed",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PaymentRequest": {
+      "title": "PaymentRequest",
+      "description": "Upgrade or credit-pack payment request submitted by a user.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "planRequested": {
+          "type": "string",
+          "enum": ["pro_monthly", "pro_yearly", "pack_100"]
+        },
+        "paymentMethod": {
+          "type": "string",
+          "enum": [
+            "spitamen_bank",
+            "dcity",
+            "alif_bank",
+            "tajikistan_cards",
+            "telegram_stars",
+            "visa_mastercard"
+          ]
+        },
+        "amountUsd": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "approved", "rejected"]
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "userName",
+        "planRequested",
+        "paymentMethod",
+        "amountUsd",
+        "status",
+        "note",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "TranslationLog": {
+      "title": "TranslationLog",
+      "description": "Cloud-synced translation history summary for a signed-in user.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "nicheMode": {
+          "type": "string",
+          "enum": ["general", "ecommerce", "finance", "travel"]
+        },
+        "sourceLang": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 12
+        },
+        "targetLang": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 12
+        },
+        "detectedLanguage": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "blockCount": {
+          "type": "integer"
+        },
+        "previewLines": {
+          "type": "array"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "title",
+        "nicheMode",
+        "sourceLang",
+        "targetLang",
+        "detectedLanguage",
+        "summary",
+        "blockCount",
+        "previewLines",
+        "createdAt"
+      ]
+    },
+    "MonetizationConfig": {
+      "title": "MonetizationConfig",
+      "description": "Public ad and sponsor banner configuration editable only by the admin.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "adsgramBlockId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "sponsorActive": {
+          "type": "boolean"
+        },
+        "sponsorTitle": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "sponsorDescription": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "sponsorCtaLabel": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "sponsorUrl": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "adsgramBlockId",
+        "sponsorActive",
+        "sponsorTitle",
+        "sponsorDescription",
+        "sponsorCtaLabel",
+        "sponsorUrl",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserQuota"
+      },
+      "description": "Stores each user's plan, daily translation count, referral stats, bonus credits, and preferred language."
+    },
+    "/users/{userId}/translations/{translationId}": {
+      "schema": {
+        "$ref": "#/entities/TranslationLog"
+      },
+      "description": "Stores synced screen translation summaries owned by the user."
+    },
+    "/referrals/{referralId}": {
+      "schema": {
+        "$ref": "#/entities/Referral"
+      },
+      "description": "Stores atomic 1-per-user referral invitations and claim statuses."
+    },
+    "/paymentRequests/{requestId}": {
+      "schema": {
+        "$ref": "#/entities/PaymentRequest"
+      },
+      "description": "Stores user upgrade and credit-pack payment requests for admin review."
+    },
+    "/appConfig/{configId}": {
+      "schema": {
+        "$ref": "#/entities/MonetizationConfig"
+      },
+      "description": "Stores admin-managed Adsgram block ID and direct sponsor banner configuration."
+    }
+  }
+}

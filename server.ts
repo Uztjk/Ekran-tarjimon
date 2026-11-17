@@ -660,6 +660,10 @@ ${text.trim()}
     const escapeHtml = (s: string) =>
       s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+    const viralShareText =
+      "🔥 1688, Taobao, Trendyol yoki telefoningizdagi istalgan chet tili rasmini 1 soniyada O'ZBEKCHAGA tarjima qiling! Bepul sinab ko'ring 👇";
+    const viralShareUrl = `https://t.me/share/url?url=${encodeURIComponent(webAppUrl)}&text=${encodeURIComponent(viralShareText)}`;
+
     const sendWelcome = async (chatId: number, firstName?: string) => {
       if (!token) return;
       const safeName = firstName ? escapeHtml(firstName) : "";
@@ -681,6 +685,7 @@ ${text.trim()}
         reply_markup: {
           inline_keyboard: [
             [{ text: "📱 EkranTarjimonni ochish", web_app: { url: webAppUrl } }],
+            [{ text: "🚀 Guruh va do'stlarga ulashish", url: viralShareUrl }],
             [
               { text: "💎 Pro tariflar", callback_data: "show_plans" },
               { text: "❓ Qanday ishlaydi?", callback_data: "show_guide" },
@@ -712,6 +717,7 @@ ${text.trim()}
         reply_markup: {
           inline_keyboard: [
             [{ text: "📱 Ilovada Pro olish", web_app: { url: webAppUrl } }],
+            [{ text: "🚀 Guruhlarga ulashish", url: viralShareUrl }],
             [{ text: "💬 Chek yuborish (@Admiin_0571)", url: "https://t.me/Admiin_0571" }],
           ],
         },
@@ -735,6 +741,7 @@ ${text.trim()}
         reply_markup: {
           inline_keyboard: [
             [{ text: "📱 Hoziroq sinab ko'rish", web_app: { url: webAppUrl } }],
+            [{ text: "🚀 Do'stlarga ulashish", url: viralShareUrl }],
           ],
         },
       });

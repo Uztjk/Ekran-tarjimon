@@ -9,6 +9,7 @@ import {
   LogOut,
   Megaphone,
   PlayCircle,
+  Share2,
   ShieldCheck,
   Sparkles,
   X,
@@ -890,16 +891,44 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                         {copiedRef ? "Nusxalandi" : "Havolani nusxalash"}
                       </span>
                     </button>
+                    <a
+                      href={`https://t.me/share/url?url=${encodeURIComponent(
+                        referralUrl
+                      )}&text=${encodeURIComponent(
+                        "🔥 1688, Taobao, Trendyol yoki ekrandagi istalgan chet tili rasmini 1 soniyada o'zbekchaga tarjima qiling! Mening havolam bilan kiring (+5 bepul tarjima) 👇"
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3.5 py-2 min-h-[38px] rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>Telegramda ulashish</span>
+                    </a>
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={signInWithGoogle}
-                    className="px-3.5 py-2 min-h-[38px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-[#2563EB] dark:text-[#60A5FA] inline-flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <LogIn className="w-3.5 h-3.5" />
-                    <span>Taklif havolasini olish uchun kiring</span>
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={signInWithGoogle}
+                      className="px-3.5 py-2 min-h-[38px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-[#2563EB] dark:text-[#60A5FA] inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <LogIn className="w-3.5 h-3.5" />
+                      <span>Taklif havolasini olish uchun kiring</span>
+                    </button>
+                    <a
+                      href={`https://t.me/share/url?url=${encodeURIComponent(
+                        "https://ekran-tarjimon.onrender.com"
+                      )}&text=${encodeURIComponent(
+                        "🔥 1688, Taobao, Trendyol yoki ekrandagi istalgan chet tili rasmini 1 soniyada o'zbekchaga tarjima qiluvchi bepul ilova! Sinab ko'ring 👇"
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3.5 py-2 min-h-[38px] rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>Guruhlarga ulashish</span>
+                    </a>
+                  </div>
                 )}
               </div>
 

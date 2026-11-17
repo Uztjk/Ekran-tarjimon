@@ -895,14 +895,27 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                       href={`https://t.me/share/url?url=${encodeURIComponent(
                         referralUrl
                       )}&text=${encodeURIComponent(
-                        "🔥 1688, Taobao, Trendyol yoki ekrandagi istalgan chet tili rasmini 1 soniyada o'zbekchaga tarjima qiling! Mening havolam bilan kiring (+5 bepul tarjima) 👇"
+                        "🔥 1688, Taobao, Trendyol yoki ekrandagi istalgan chet tili rasmini 1 soniyada o'zbekchaga tarjima qiling! Mening havolam bilan kiring (+5 bepul tarjima) 👇\n🤖 Telegram bot: https://t.me/Ek_tarjimonbot"
                       )}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-3.5 py-2 min-h-[38px] rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap"
                     >
                       <Share2 className="w-3.5 h-3.5" />
-                      <span>Telegramda ulashish</span>
+                      <span>Taklif havolasini ulashish</span>
+                    </a>
+                    <a
+                      href={`https://t.me/share/url?url=${encodeURIComponent(
+                        "https://t.me/Ek_tarjimonbot"
+                      )}&text=${encodeURIComponent(
+                        "🔥 1688, Taobao, Trendyol yoki telefoningizdagi istalgan chet tili rasmini 1 soniyada o'zbekchaga tarjima qiluvchi bot! Bepul sinab ko'ring 👇"
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3.5 py-2 min-h-[38px] rounded-xl border border-[#2563EB]/30 bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-xs font-semibold text-[#2563EB] dark:text-[#60A5FA] inline-flex items-center gap-1.5 whitespace-nowrap"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>Botni guruhga ulashish</span>
                     </a>
                   </div>
                 ) : (
@@ -917,9 +930,9 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                     </button>
                     <a
                       href={`https://t.me/share/url?url=${encodeURIComponent(
-                        "https://ekran-tarjimon.onrender.com"
+                        "https://t.me/Ek_tarjimonbot"
                       )}&text=${encodeURIComponent(
-                        "🔥 1688, Taobao, Trendyol yoki ekrandagi istalgan chet tili rasmini 1 soniyada o'zbekchaga tarjima qiluvchi bepul ilova! Sinab ko'ring 👇"
+                        "🔥 1688, Taobao, Trendyol yoki ekrandagi istalgan chet tili rasmini 1 soniyada o'zbekchaga tarjima qiluvchi bot! Bepul sinab ko'ring 👇"
                       )}`}
                       target="_blank"
                       rel="noopener noreferrer"

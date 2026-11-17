@@ -660,9 +660,12 @@ ${text.trim()}
     const escapeHtml = (s: string) =>
       s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+    const botShareUrl = (
+      process.env.TELEGRAM_BOT_URL?.trim() || "https://t.me/Ek_tarjimonbot"
+    ).replace(/\/$/, "");
     const viralShareText =
       "🔥 1688, Taobao, Trendyol yoki telefoningizdagi istalgan chet tili rasmini 1 soniyada O'ZBEKCHAGA tarjima qiling! Bepul sinab ko'ring 👇";
-    const viralShareUrl = `https://t.me/share/url?url=${encodeURIComponent(webAppUrl)}&text=${encodeURIComponent(viralShareText)}`;
+    const viralShareUrl = `https://t.me/share/url?url=${encodeURIComponent(botShareUrl)}&text=${encodeURIComponent(viralShareText)}`;
 
     const sendWelcome = async (chatId: number, firstName?: string) => {
       if (!token) return;

@@ -545,6 +545,23 @@ ${text.trim()}
     }
   );
 
+  async function callTelegramMethod(
+    token: string,
+    method: string,
+    payload: Record<string, unknown>
+  ): Promise<{ ok?: boolean; description?: string; result?: unknown }> {
+    const resp = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return (await resp.json()) as {
+      ok?: boolean;
+      description?: string;
+      result?: unknown;
+    };
+  }
+
   app.post("/api/telegram/setup-webhook", async (req: Request, res: Response) => {
     const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
     if (!token) {
@@ -570,27 +587,35 @@ ${text.trim()}
 
     const webhookUrl = `${baseUrl}/api/telegram/webhook`;
     try {
-      const tgRes = await fetch(
-        `https://api.telegram.org/bot${token}/setWebhook`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            url: webhookUrl,
-            allowed_updates: ["pre_checkout_query", "message"],
-          }),
-        }
-      );
-      const tgData = (await tgRes.json()) as {
-        ok?: boolean;
-        description?: string;
-      };
-      if (!tgRes.ok || !tgData.ok) {
+      const tgData = await callTelegramMethod(token, "setWebhook", {
+        url: webhookUrl,
+        allowed_updates: ["pre_checkout_query", "message", "callback_query"],
+      });
+      if (!tgData.ok) {
         res.status(502).json({
           error: tgData.description || "Webhook ulashda xatolik yuz berdi.",
         });
         return;
       }
+
+      // Configure clean Uzbek commands and Menu Button automatically
+      await Promise.allSettled([
+        callTelegramMethod(token, "setMyCommands", {
+          commands: [
+            { command: "start", description: "Ilovani ochish va boshlash" },
+            { command: "tarif", description: "Pro tariflar va bepul bonuslar" },
+            { command: "yordam", description: "Qo'llanma va admin bilan aloqa" },
+          ],
+        }),
+        callTelegramMethod(token, "setChatMenuButton", {
+          menu_button: {
+            type: "web_app",
+            text: "Tarjimonni ochish",
+            web_app: { url: baseUrl },
+          },
+        }),
+      ]);
+
       res.json({ ok: true, webhookUrl });
     } catch {
       res.status(500).json({ error: "Telegram API bilan bog'lanib bo'lmadi." });
@@ -599,6 +624,10 @@ ${text.trim()}
 
   app.post("/api/telegram/webhook", async (req: Request, res: Response) => {
     const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
+    const webAppUrl = (
+      process.env.APP_URL?.trim() || "https://ekran-tarjimon.onrender.com"
+    ).replace(/\/$/, "");
+
     const update = req.body as {
       pre_checkout_query?: {
         id: string;
@@ -607,8 +636,18 @@ ${text.trim()}
         total_amount?: number;
         invoice_payload?: string;
       };
+      callback_query?: {
+        id: string;
+        data?: string;
+        from?: { id: number; first_name?: string; username?: string };
+        message?: { chat?: { id: number } };
+      };
       message?: {
+        chat?: { id: number; type?: string };
         from?: { id: number; username?: string; first_name?: string };
+        text?: string;
+        photo?: unknown[];
+        document?: { mime_type?: string };
         successful_payment?: {
           currency: string;
           total_amount: number;
@@ -618,19 +657,109 @@ ${text.trim()}
       };
     };
 
+    const escapeHtml = (s: string) =>
+      s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+    const sendWelcome = async (chatId: number, firstName?: string) => {
+      if (!token) return;
+      const safeName = firstName ? escapeHtml(firstName) : "";
+      const greeting = safeName ? `Assalomu alaykum, <b>${safeName}</b>!` : "Assalomu alaykum!";
+      await callTelegramMethod(token, "sendMessage", {
+        chat_id: chatId,
+        parse_mode: "HTML",
+        text: [
+          `<b>${greeting}</b>`,
+          "",
+          "<b>EkranTarjimon</b> — telefon ekrani, skrinshot va rasmlardagi matnlarni bir zumda <b>o'zbek</b> va <b>105+</b> tillarga tarjima qiluvchi aqlli yordamchi.",
+          "",
+          "• <b>1688, Taobao, Trendyol, Wildberries</b> ilovalari uchun maxsus rejim",
+          "• Matnni rasmning o'zida (ustma-ust) tarjima ko'rinishida chiqarish",
+          "• Qisqa matn yuborsangiz, shu yerning o'zida ham tarjima qilib beraman!",
+          "",
+          "<i>Boshlash uchun pastdagi tugmani bosing:</i>",
+        ].join("\n"),
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "📱 EkranTarjimonni ochish", web_app: { url: webAppUrl } }],
+            [
+              { text: "💎 Pro tariflar", callback_data: "show_plans" },
+              { text: "❓ Qanday ishlaydi?", callback_data: "show_guide" },
+            ],
+            [{ text: "👨‍💻 Admin (@Admiin_0571)", url: "https://t.me/Admiin_0571" }],
+          ],
+        },
+      });
+    };
+
+    const sendPlans = async (chatId: number) => {
+      if (!token) return;
+      await callTelegramMethod(token, "sendMessage", {
+        chat_id: chatId,
+        parse_mode: "HTML",
+        text: [
+          "💎 <b>EkranTarjimon Pro tariflari</b>",
+          "",
+          "• <b>Pro Oylik:</b> $3 / oy (yoki 150 ★)",
+          "• <b>Pro Yillik:</b> $24 / yil (33% chegirma · 1200 ★)",
+          "• <b>100 ta Kredit paketi:</b> $1.50 (75 ★)",
+          "",
+          "🎁 <b>Bepul imkoniyatlar:</b>",
+          "• Ilova ichida <b>+2 (Reklama)</b> tugmasi orqali kunlik qo'shimcha tarjima",
+          "• Do'st taklif qilib <b>+10 bonus</b> olish",
+          "",
+          "💳 <b>To'lov usullari:</b> Spitamen Bank, DCity, Alif Bank, Telegram Stars. Chekni @Admiin_0571 ga yuborishingiz mumkin.",
+        ].join("\n"),
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "📱 Ilovada Pro olish", web_app: { url: webAppUrl } }],
+            [{ text: "💬 Chek yuborish (@Admiin_0571)", url: "https://t.me/Admiin_0571" }],
+          ],
+        },
+      });
+    };
+
+    const sendGuide = async (chatId: number) => {
+      if (!token) return;
+      await callTelegramMethod(token, "sendMessage", {
+        chat_id: chatId,
+        parse_mode: "HTML",
+        text: [
+          "📖 <b>Qanday ishlatiladi?</b>",
+          "",
+          "1️⃣ Pastdagi <b>EkranTarjimonni ochish</b> tugmasini bosing.",
+          "2️⃣ Telefoningizdan skrinshot yuklang yoki <b>Kamera</b> orqali rasmga oling.",
+          "3️⃣ Bir necha soniyada rasm ichidagi barcha tugma va yozuvlar o'zbek tiliga o'giriladi!",
+          "",
+          "💡 <i>Maslahat: Xitoy/Turk do'konlari uchun ilova ichida «1688 / Taobao / Trendyol» uslubini tanlang.</i>",
+        ].join("\n"),
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "📱 Hoziroq sinab ko'rish", web_app: { url: webAppUrl } }],
+          ],
+        },
+      });
+    };
+
     try {
       if (update.pre_checkout_query?.id && token) {
-        await fetch(
-          `https://api.telegram.org/bot${token}/answerPreCheckoutQuery`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              pre_checkout_query_id: update.pre_checkout_query.id,
-              ok: true,
-            }),
+        await callTelegramMethod(token, "answerPreCheckoutQuery", {
+          pre_checkout_query_id: update.pre_checkout_query.id,
+          ok: true,
+        });
+      }
+
+      if (update.callback_query?.id && token) {
+        await callTelegramMethod(token, "answerCallbackQuery", {
+          callback_query_id: update.callback_query.id,
+        });
+        const cbChatId = update.callback_query.message?.chat?.id;
+        if (cbChatId) {
+          if (update.callback_query.data === "show_plans") {
+            await sendPlans(cbChatId);
+          } else if (update.callback_query.data === "show_guide") {
+            await sendGuide(cbChatId);
           }
-        );
+        }
       }
 
       const sp = update.message?.successful_payment;
@@ -663,6 +792,59 @@ ${text.trim()}
             `Chek ID: ${sp.telegram_payment_charge_id}`,
           ].join("\n")
         );
+      } else if (update.message?.chat?.id && token) {
+        const chatId = update.message.chat.id;
+        const firstName = update.message.from?.first_name;
+        const rawText = update.message.text?.trim() || "";
+        const isImageUpload =
+          Array.isArray(update.message.photo) ||
+          Boolean(update.message.document?.mime_type?.startsWith("image/"));
+
+        if (rawText.startsWith("/start")) {
+          await sendWelcome(chatId, firstName);
+        } else if (rawText.startsWith("/tarif")) {
+          await sendPlans(chatId);
+        } else if (rawText.startsWith("/yordam") || rawText.startsWith("/help")) {
+          await sendGuide(chatId);
+        } else if (isImageUpload) {
+          await callTelegramMethod(token, "sendMessage", {
+            chat_id: chatId,
+            parse_mode: "HTML",
+            text: "🖼 Skrinshotdagi barcha yozuvlarni rasmning ustiga o'zbekcha qilib chiqarish uchun pastdagi tugma orqali <b>EkranTarjimon</b> ilovasini ochib rasmni yuklang:",
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: "📱 Skrinshotni tarjima qilish", web_app: { url: webAppUrl } }],
+              ],
+            },
+          });
+        } else if (rawText && !rawText.startsWith("/")) {
+          try {
+            const ai = getGeminiClient();
+            const reply = await withRetry(() =>
+              ai.models.generateContent({
+                model: MODEL_NAME,
+                contents: `Translate the following message naturally into Uzbek (or if it is already in Uzbek, translate it into clear English). Keep it concise and helpful:\n\n"""\n${rawText.slice(0, 600)}\n"""`,
+                config: {
+                  thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+                },
+              })
+            );
+            const translated = (reply.text ?? "").trim();
+            if (translated) {
+              await callTelegramMethod(token, "sendMessage", {
+                chat_id: chatId,
+                text: `Tarjima:\n${translated}`,
+                reply_markup: {
+                  inline_keyboard: [
+                    [{ text: "📱 Ekran / rasm tarjimasini ochish", web_app: { url: webAppUrl } }],
+                  ],
+                },
+              });
+            }
+          } catch {
+            await sendWelcome(chatId, firstName);
+          }
+        }
       }
     } catch {
       // Keep webhook responsive

@@ -619,6 +619,22 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                     {webhookMessage}
                   </p>
                 )}
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2">
+                  <a
+                    href="/promo-video.mp4"
+                    download="EkranTarjimon-Reels.mp4"
+                    className="px-3 py-1.5 min-h-[34px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-100 inline-flex items-center gap-1.5"
+                  >
+                    <span>🎬 Tayyor Reels video (.mp4)</span>
+                  </a>
+                  <a
+                    href="/promo-poster.jpg"
+                    download="EkranTarjimon-Poster.jpg"
+                    className="px-3 py-1.5 min-h-[34px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-100 inline-flex items-center gap-1.5"
+                  >
+                    <span>🖼 Reklama rasmi (.jpg)</span>
+                  </a>
+                </div>
               </div>
 
               {/* Admin-only Adsgram & Direct Sponsor Banner settings */}

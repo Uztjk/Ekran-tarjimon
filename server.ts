@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import express from "express";
 import type { Request, Response } from "express";
+import fs from "fs";
 import path from "path";
 import { GoogleGenAI, ThinkingLevel, Type } from "@google/genai";
 
@@ -998,6 +999,43 @@ ${text.trim()}
               `• Guruhlarga qo'shilgan: ${botActivityStats.totalGroupJoins} ta`,
             ].join("\n"),
           });
+        } else if (rawText.startsWith("/promo")) {
+          const videoPath = path.resolve(process.cwd(), "public/promo-video.mp4");
+          const caption = [
+            "🔥 1688, Taobao, Trendyol yoki telefoningizdagi istalgan chet tili rasmini 1 soniyada O'ZBEKCHAGA tarjima qiling!",
+            "",
+            "📸 1 ta skrinshot = rasmning o'zida tayyor tarjima!",
+            "🤖 Bot: @Ek_tarjimonbot",
+            "🔗 https://t.me/Ek_tarjimonbot",
+          ].join("\n");
+          try {
+            const videoBytes = await fs.promises.readFile(videoPath);
+            const formData = new FormData();
+            formData.append("chat_id", String(chatId));
+            formData.append(
+              "video",
+              new Blob([videoBytes], { type: "video/mp4" }),
+              "EkranTarjimon-Reels.mp4"
+            );
+            formData.append("caption", caption);
+            formData.append("supports_streaming", "true");
+            const tgVidResp = await fetch(
+              `https://api.telegram.org/bot${token}/sendVideo`,
+              { method: "POST", body: formData }
+            );
+            const tgVidJson = (await tgVidResp.json()) as { ok?: boolean };
+            if (!tgVidJson.ok) {
+              await sendTelegramSafe(token, {
+                chat_id: chatId,
+                text: `🎬 Tayyor Reels video:\n${webAppUrl}/promo-video.mp4\n\n${caption}`,
+              });
+            }
+          } catch {
+            await sendTelegramSafe(token, {
+              chat_id: chatId,
+              text: `🎬 Tayyor Reels video:\n${webAppUrl}/promo-video.mp4\n\n${caption}`,
+            });
+          }
         } else if (rawText.startsWith("/tarif")) {
           await sendPlans(chatId);
         } else if (rawText.startsWith("/yordam") || rawText.startsWith("/help")) {

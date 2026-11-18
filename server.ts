@@ -545,10 +545,12 @@ ${text.trim()}
     }
   );
 
+  let lastWebhookError: string | null = null;
+
   async function callTelegramMethod(
     token: string,
     method: string,
-    payload: Record<string, unknown>
+    payload: Record<string, unknown> = {}
   ): Promise<{ ok?: boolean; description?: string; result?: unknown }> {
     const resp = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
       method: "POST",
@@ -561,6 +563,58 @@ ${text.trim()}
       result?: unknown;
     };
   }
+
+  async function sendTelegramSafe(
+    token: string,
+    payload: Record<string, unknown>,
+    fallbackText?: string
+  ) {
+    const result = await callTelegramMethod(token, "sendMessage", payload);
+    if (!result.ok) {
+      lastWebhookError = result.description || "sendMessage failed";
+      console.error("Telegram sendMessage failed:", lastWebhookError);
+      if (fallbackText && payload.chat_id) {
+        await callTelegramMethod(token, "sendMessage", {
+          chat_id: payload.chat_id,
+          text: fallbackText,
+        });
+      }
+    }
+    return result;
+  }
+
+  app.get("/api/telegram/webhook-status", async (_req: Request, res: Response) => {
+    const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
+    if (!token) {
+      res.json({ configured: false });
+      return;
+    }
+    try {
+      const [meRes, infoRes] = await Promise.all([
+        callTelegramMethod(token, "getMe"),
+        callTelegramMethod(token, "getWebhookInfo"),
+      ]);
+      const me = (meRes.result || {}) as { username?: string; first_name?: string };
+      const info = (infoRes.result || {}) as {
+        url?: string;
+        pending_update_count?: number;
+        last_error_message?: string;
+        last_error_date?: number;
+      };
+      res.json({
+        configured: true,
+        botUsername: me.username || null,
+        botName: me.first_name || null,
+        webhookUrl: info.url || "",
+        pendingUpdateCount: info.pending_update_count ?? 0,
+        lastTelegramError: info.last_error_message || null,
+        lastTelegramErrorDate: info.last_error_date || null,
+        lastLocalError: lastWebhookError,
+      });
+    } catch {
+      res.status(500).json({ configured: true, error: "Telegram API check failed" });
+    }
+  });
 
   app.post("/api/telegram/setup-webhook", async (req: Request, res: Response) => {
     const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
@@ -670,38 +724,44 @@ ${text.trim()}
     const sendWelcome = async (chatId: number, firstName?: string) => {
       if (!token) return;
       const safeName = firstName ? escapeHtml(firstName) : "";
-      const greeting = safeName ? `Assalomu alaykum, <b>${safeName}</b>!` : "Assalomu alaykum!";
-      await callTelegramMethod(token, "sendMessage", {
-        chat_id: chatId,
-        parse_mode: "HTML",
-        text: [
-          `<b>${greeting}</b>`,
-          "",
-          "<b>EkranTarjimon</b> — telefon ekrani, skrinshot va rasmlardagi matnlarni bir zumda <b>o'zbek</b> va <b>105+</b> tillarga tarjima qiluvchi aqlli yordamchi.",
-          "",
-          "• <b>1688, Taobao, Trendyol, Wildberries</b> ilovalari uchun maxsus rejim",
-          "• Matnni rasmning o'zida (ustma-ust) tarjima ko'rinishida chiqarish",
-          "• Qisqa matn yuborsangiz, shu yerning o'zida ham tarjima qilib beraman!",
-          "",
-          "<i>Boshlash uchun pastdagi tugmani bosing:</i>",
-        ].join("\n"),
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: "📱 EkranTarjimonni ochish", web_app: { url: webAppUrl } }],
-            [{ text: "🚀 Guruh va do'stlarga ulashish", url: viralShareUrl }],
-            [
-              { text: "💎 Pro tariflar", callback_data: "show_plans" },
-              { text: "❓ Qanday ishlaydi?", callback_data: "show_guide" },
+      const greeting = safeName
+        ? `<b>Assalomu alaykum, ${safeName}!</b>`
+        : "<b>Assalomu alaykum!</b>";
+      await sendTelegramSafe(
+        token,
+        {
+          chat_id: chatId,
+          parse_mode: "HTML",
+          text: [
+            greeting,
+            "",
+            "<b>EkranTarjimon</b> — telefon ekrani, skrinshot va rasmlardagi matnlarni bir zumda <b>o'zbek</b> va <b>105+</b> tillarga tarjima qiluvchi aqlli yordamchi.",
+            "",
+            "• <b>1688, Taobao, Trendyol, Wildberries</b> ilovalari uchun maxsus rejim",
+            "• Matnni rasmning o'zida (ustma-ust) tarjima ko'rinishida chiqarish",
+            "• Qisqa matn yuborsangiz, shu yerning o'zida ham tarjima qilib beraman!",
+            "",
+            "<i>Boshlash uchun pastdagi tugmani bosing:</i>",
+          ].join("\n"),
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "📱 EkranTarjimonni ochish", web_app: { url: webAppUrl } }],
+              [{ text: "🚀 Guruh va do'stlarga ulashish", url: viralShareUrl }],
+              [
+                { text: "💎 Pro tariflar", callback_data: "show_plans" },
+                { text: "❓ Qanday ishlaydi?", callback_data: "show_guide" },
+              ],
+              [{ text: "👨‍💻 Admin (@Admiin_0571)", url: "https://t.me/Admiin_0571" }],
             ],
-            [{ text: "👨‍💻 Admin (@Admiin_0571)", url: "https://t.me/Admiin_0571" }],
-          ],
+          },
         },
-      });
+        `Assalomu alaykum! EkranTarjimon ilovasini ochish uchun havola: ${webAppUrl}`
+      );
     };
 
     const sendPlans = async (chatId: number) => {
       if (!token) return;
-      await callTelegramMethod(token, "sendMessage", {
+      await sendTelegramSafe(token, {
         chat_id: chatId,
         parse_mode: "HTML",
         text: [
@@ -729,7 +789,7 @@ ${text.trim()}
 
     const sendGuide = async (chatId: number) => {
       if (!token) return;
-      await callTelegramMethod(token, "sendMessage", {
+      await sendTelegramSafe(token, {
         chat_id: chatId,
         parse_mode: "HTML",
         text: [

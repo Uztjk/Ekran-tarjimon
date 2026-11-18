@@ -1000,7 +1000,12 @@ ${text.trim()}
             ].join("\n"),
           });
         } else if (rawText.startsWith("/promo")) {
-          const videoPath = path.resolve(process.cwd(), "public/promo-video.mp4");
+          const isFirst = rawText.startsWith("/promo1");
+          const fileName = isFirst ? "promo-video.mp4" : "promo-video-2.mp4";
+          const downloadName = isFirst
+            ? "EkranTarjimon-Reels-1.mp4"
+            : "EkranTarjimon-Reels-2.mp4";
+          const videoPath = path.resolve(process.cwd(), "public", fileName);
           const caption = [
             "🔥 1688, Taobao, Trendyol yoki telefoningizdagi istalgan chet tili rasmini 1 soniyada O'ZBEKCHAGA tarjima qiling!",
             "",
@@ -1015,7 +1020,7 @@ ${text.trim()}
             formData.append(
               "video",
               new Blob([videoBytes], { type: "video/mp4" }),
-              "EkranTarjimon-Reels.mp4"
+              downloadName
             );
             formData.append("caption", caption);
             formData.append("supports_streaming", "true");
@@ -1027,13 +1032,13 @@ ${text.trim()}
             if (!tgVidJson.ok) {
               await sendTelegramSafe(token, {
                 chat_id: chatId,
-                text: `🎬 Tayyor Reels video:\n${webAppUrl}/promo-video.mp4\n\n${caption}`,
+                text: `🎬 Tayyor Reels video:\n${webAppUrl}/${fileName}\n\n${caption}`,
               });
             }
           } catch {
             await sendTelegramSafe(token, {
               chat_id: chatId,
-              text: `🎬 Tayyor Reels video:\n${webAppUrl}/promo-video.mp4\n\n${caption}`,
+              text: `🎬 Tayyor Reels video:\n${webAppUrl}/${fileName}\n\n${caption}`,
             });
           }
         } else if (rawText.startsWith("/tarif")) {

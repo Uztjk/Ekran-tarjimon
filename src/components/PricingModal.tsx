@@ -621,11 +621,18 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                 )}
                 <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2">
                   <a
+                    href="/promo-video-2.mp4"
+                    download="EkranTarjimon-Reels-2.mp4"
+                    className="px-3 py-1.5 min-h-[34px] rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-semibold inline-flex items-center gap-1.5"
+                  >
+                    <span>🔥 Yangi Reels video #2 (.mp4)</span>
+                  </a>
+                  <a
                     href="/promo-video.mp4"
-                    download="EkranTarjimon-Reels.mp4"
+                    download="EkranTarjimon-Reels-1.mp4"
                     className="px-3 py-1.5 min-h-[34px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-100 inline-flex items-center gap-1.5"
                   >
-                    <span>🎬 Tayyor Reels video (.mp4)</span>
+                    <span>🎬 Reels video #1 (.mp4)</span>
                   </a>
                   <a
                     href="/promo-poster.jpg"

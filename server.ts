@@ -616,6 +616,28 @@ ${text.trim()}
     }
   });
 
+  const seenBotUsers = new Set<number>();
+  const botActivityStats = {
+    totalStarts: 0,
+    totalLeaves: 0,
+    totalGroupJoins: 0,
+  };
+
+  function formatTgActor(
+    from?: { id?: number; first_name?: string; last_name?: string; username?: string },
+    fallbackId?: number
+  ) {
+    const fullName = [from?.first_name, from?.last_name].filter(Boolean).join(" ").trim();
+    const uname = from?.username ? `@${from.username}` : "";
+    const uid = from?.id ?? fallbackId;
+    const label = [fullName || "Noma'lum", uname ? `(${uname})` : ""].filter(Boolean).join(" ");
+    return `${label}${uid ? ` | ID: ${uid}` : ""}`;
+  }
+
+  function formatUzbekNow() {
+    return new Date().toLocaleString("uz-UZ", { timeZone: "Asia/Tashkent" });
+  }
+
   app.post("/api/telegram/setup-webhook", async (req: Request, res: Response) => {
     const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
     if (!token) {
@@ -643,7 +665,12 @@ ${text.trim()}
     try {
       const tgData = await callTelegramMethod(token, "setWebhook", {
         url: webhookUrl,
-        allowed_updates: ["pre_checkout_query", "message", "callback_query"],
+        allowed_updates: [
+          "pre_checkout_query",
+          "message",
+          "callback_query",
+          "my_chat_member",
+        ],
       });
       if (!tgData.ok) {
         res.status(502).json({
@@ -693,12 +720,18 @@ ${text.trim()}
       callback_query?: {
         id: string;
         data?: string;
-        from?: { id: number; first_name?: string; username?: string };
+        from?: { id: number; first_name?: string; last_name?: string; username?: string };
         message?: { chat?: { id: number } };
       };
+      my_chat_member?: {
+        chat?: { id: number; type?: string; title?: string; username?: string; first_name?: string };
+        from?: { id: number; first_name?: string; last_name?: string; username?: string };
+        old_chat_member?: { status?: string };
+        new_chat_member?: { status?: string };
+      };
       message?: {
-        chat?: { id: number; type?: string };
-        from?: { id: number; username?: string; first_name?: string };
+        chat?: { id: number; type?: string; title?: string };
+        from?: { id: number; username?: string; first_name?: string; last_name?: string };
         text?: string;
         photo?: unknown[];
         document?: { mime_type?: string };
@@ -832,6 +865,62 @@ ${text.trim()}
         }
       }
 
+      if (update.my_chat_member) {
+        const mcm = update.my_chat_member;
+        const chatType = mcm.chat?.type || "private";
+        const oldStatus = mcm.old_chat_member?.status || "";
+        const newStatus = mcm.new_chat_member?.status || "";
+        const actor = formatTgActor(mcm.from, mcm.chat?.id);
+        const nowText = formatUzbekNow();
+
+        if (chatType === "private") {
+          if (newStatus === "kicked" || newStatus === "left") {
+            botActivityStats.totalLeaves += 1;
+            await sendTelegramAdminMessage(
+              [
+                "🔴 Botdan chiqdi (to'xtatdi / blokladi)",
+                `👤 ${actor}`,
+                `🕒 Vaqt: ${nowText}`,
+                `📊 Sessiya: ${botActivityStats.totalStarts} kirish · ${botActivityStats.totalLeaves} chiqish`,
+              ].join("\n")
+            );
+          } else if (newStatus === "member" && (oldStatus === "kicked" || oldStatus === "left")) {
+            await sendTelegramAdminMessage(
+              [
+                "🟡 Botni qayta yoqdi (blokdan ochdi)",
+                `👤 ${actor}`,
+                `🕒 Vaqt: ${nowText}`,
+              ].join("\n")
+            );
+          }
+        } else {
+          const groupName = mcm.chat?.title || "Guruh";
+          const groupHandle = mcm.chat?.username ? `@${mcm.chat.username}` : "yopiq guruh";
+          if (
+            (newStatus === "member" || newStatus === "administrator") &&
+            oldStatus !== "member" &&
+            oldStatus !== "administrator"
+          ) {
+            botActivityStats.totalGroupJoins += 1;
+            await sendTelegramAdminMessage(
+              [
+                `📢 Bot guruhga qo'shildi: ${groupName} (${groupHandle})`,
+                `👤 Qo'shdi: ${actor}`,
+                `🕒 Vaqt: ${nowText}`,
+              ].join("\n")
+            );
+          } else if (newStatus === "left" || newStatus === "kicked") {
+            await sendTelegramAdminMessage(
+              [
+                `🚪 Bot guruhdan chiqarildi: ${groupName} (${groupHandle})`,
+                `👤 Kim: ${actor}`,
+                `🕒 Vaqt: ${nowText}`,
+              ].join("\n")
+            );
+          }
+        }
+      }
+
       const sp = update.message?.successful_payment;
       if (sp) {
         const parts = String(sp.invoice_payload || "").split(":");
@@ -869,9 +958,46 @@ ${text.trim()}
         const isImageUpload =
           Array.isArray(update.message.photo) ||
           Boolean(update.message.document?.mime_type?.startsWith("image/"));
+        const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID?.trim();
 
         if (rawText.startsWith("/start")) {
           await sendWelcome(chatId, firstName);
+
+          const uid = update.message.from?.id;
+          const isNewInSession = uid ? !seenBotUsers.has(uid) : true;
+          if (uid) {
+            if (seenBotUsers.size >= 5000) {
+              const firstKey = seenBotUsers.values().next().value;
+              if (firstKey !== undefined) seenBotUsers.delete(firstKey);
+            }
+            seenBotUsers.add(uid);
+          }
+          botActivityStats.totalStarts += 1;
+
+          const startParam = rawText.split(/\s+/)[1]?.trim();
+          const actor = formatTgActor(update.message.from, chatId);
+          await sendTelegramAdminMessage(
+            [
+              isNewInSession ? "🟢 Botga yangi odam kirdi (/start)" : "🟢 Botga qayta kirdi (/start)",
+              `👤 ${actor}`,
+              startParam ? `🔗 Manba: ${startParam}` : "",
+              `🕒 Vaqt: ${formatUzbekNow()}`,
+              `📊 Sessiya: ${botActivityStats.totalStarts} kirish (${seenBotUsers.size} kishi) · ${botActivityStats.totalLeaves} chiqish`,
+            ]
+              .filter(Boolean)
+              .join("\n")
+          );
+        } else if (rawText === "/stat" && adminChatId && String(chatId) === adminChatId) {
+          await sendTelegramSafe(token, {
+            chat_id: chatId,
+            text: [
+              "📊 Bot faolligi (server ishga tushgandan beri):",
+              `• Kirishlar (/start): ${botActivityStats.totalStarts} ta`,
+              `• Noyob foydalanuvchilar: ${seenBotUsers.size} kishi`,
+              `• Chiqish / blok: ${botActivityStats.totalLeaves} ta`,
+              `• Guruhlarga qo'shilgan: ${botActivityStats.totalGroupJoins} ta`,
+            ].join("\n"),
+          });
         } else if (rawText.startsWith("/tarif")) {
           await sendPlans(chatId);
         } else if (rawText.startsWith("/yordam") || rawText.startsWith("/help")) {
@@ -957,6 +1083,7 @@ ${text.trim()}
                 "pre_checkout_query",
                 "message",
                 "callback_query",
+                "my_chat_member",
               ],
             }),
             callTelegramMethod(prodToken, "setMyCommands", {

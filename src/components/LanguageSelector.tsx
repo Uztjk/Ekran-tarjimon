@@ -18,11 +18,22 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   ariaLabel,
   accent = false,
 }) => {
-  const { t } = useUiLang();
+  const { uiLang, t } = useUiLang();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const containerRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  const getLangDisplay = (lang: LanguageOption) => {
+    if (lang.code === "auto") {
+      if (uiLang === "ru") return "Автоопределение";
+      if (uiLang === "en") return "Auto Detect";
+      if (uiLang === "tj") return "Худкор";
+      return lang.nameUz;
+    }
+    if (uiLang === "uz") return lang.nameUz;
+    return lang.nativeName ? lang.nativeName.split("·")[0].trim() : lang.nameUz;
+  };
 
   const selected = useMemo(
     () => options.find((o) => o.code === value) ?? options[0],
@@ -99,7 +110,9 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
             : "font-medium text-slate-900 dark:text-white"
         }`}
       >
-        <span className="truncate whitespace-nowrap">{selected?.nameUz}</span>
+        <span className="truncate whitespace-nowrap">
+          {selected ? getLangDisplay(selected) : ""}
+        </span>
         <ChevronDown
           className={`w-4 h-4 shrink-0 text-slate-400 transition-transform duration-150 ${
             isOpen ? "rotate-180" : ""
@@ -169,7 +182,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
                       >
                         <div className="min-w-0">
                           <div className="text-xs sm:text-sm font-medium truncate">
-                            {lang.nameUz}
+                            {getLangDisplay(lang)}
                           </div>
                           {lang.nativeName && (
                             <div className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
@@ -208,7 +221,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
                       >
                         <div className="min-w-0">
                           <div className="text-xs sm:text-sm font-medium truncate">
-                            {lang.nameUz}
+                            {getLangDisplay(lang)}
                           </div>
                           {lang.nativeName && (
                             <div className="text-[11px] text-slate-400 dark:text-slate-500 truncate">

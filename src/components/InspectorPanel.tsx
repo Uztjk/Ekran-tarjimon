@@ -141,6 +141,8 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
       if (Array.isArray(data.alternatives)) {
         setAlternatives(data.alternatives);
       }
+    } catch {
+      setAlternatives([]);
     } finally {
       setRefiningId(null);
     }

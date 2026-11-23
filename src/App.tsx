@@ -53,7 +53,7 @@ const THEME_STORAGE_KEY = "ekrantarjimon_theme_v1";
 
 export default function App() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const { t } = useUiLang();
+  const { uiLang, t } = useUiLang();
 
   const [activeTab, setActiveTab] = useState<AppTab>("translator");
   const [isDark, setIsDark] = useState<boolean>(() => {
@@ -199,7 +199,7 @@ export default function App() {
 
         for (let attempt = 0; attempt < 2; attempt += 1) {
           const controller = new AbortController();
-          const timer = window.setTimeout(() => controller.abort(), 45000);
+          const timer = window.setTimeout(() => controller.abort(), 75000);
           try {
             const res = await fetch("/api/translate-screen", {
               method: "POST",
@@ -230,10 +230,13 @@ export default function App() {
             }
 
             lastErrorMsg =
-              parsed?.error ||
-              (res.status >= 502 && res.status <= 504
+              uiLang === "uz" && parsed?.error
+                ? parsed.error
+                : res.status >= 502 && res.status <= 504
                 ? t.errServerWaking
-                : t.errDefaultTranslate);
+                : res.status === 429
+                ? t.errServerWaking
+                : t.errDefaultTranslate;
 
             const shouldRetry = attempt === 0 && (res.status >= 502 || res.status === 429);
             if (!shouldRetry) break;
@@ -320,6 +323,7 @@ export default function App() {
       consumeQuota,
       logTranslationToCloud,
       saveToHistory,
+      uiLang,
       t,
     ]
   );

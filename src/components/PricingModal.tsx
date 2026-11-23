@@ -985,11 +985,12 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
-                      onClick={signInWithGoogle}
-                      className="px-3.5 py-2 min-h-[38px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-[#2563EB] dark:text-[#60A5FA] inline-flex items-center gap-1.5 cursor-pointer"
+                      onClick={handleGoogleSignIn}
+                      disabled={signingIn}
+                      className="px-3.5 py-2 min-h-[38px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 text-xs font-semibold text-[#2563EB] dark:text-[#60A5FA] inline-flex items-center gap-1.5 cursor-pointer"
                     >
                       <LogIn className="w-3.5 h-3.5" />
-                      <span>{t.pricingSignInGoogle}</span>
+                      <span>{signingIn ? t.pricingSigningIn : t.pricingSignInGoogle}</span>
                     </button>
                     <a
                       href={`https://t.me/share/url?url=${encodeURIComponent(
@@ -1189,7 +1190,13 @@ export const PricingModal: React.FC<PricingModalProps> = ({
               {myRequests.length > 0 && (
                 <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
                   <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                    So&apos;nggi to&apos;lov so&apos;rovlaringiz
+                    {uiLang === "ru"
+                      ? "Ваши недавние заявки на оплату"
+                      : uiLang === "en"
+                      ? "Your recent payment requests"
+                      : uiLang === "tj"
+                      ? "Дархостҳои охирини пардохти шумо"
+                      : "So'nggi to'lov so'rovlaringiz"}
                   </p>
                   <div className="space-y-1.5">
                     {myRequests.slice(0, 3).map((r) => (
@@ -1203,9 +1210,27 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                         </span>
                         <span className="font-medium tabular-nums">
                           {r.status === "pending"
-                            ? "Tekshirilmoqda"
+                            ? uiLang === "ru"
+                              ? "Проверяется"
+                              : uiLang === "en"
+                              ? "Pending"
+                              : uiLang === "tj"
+                              ? "Дар санҷиш"
+                              : "Tekshirilmoqda"
                             : r.status === "approved"
-                            ? "Tasdiqlandi"
+                            ? uiLang === "ru"
+                              ? "Подтверждено"
+                              : uiLang === "en"
+                              ? "Approved"
+                              : uiLang === "tj"
+                              ? "Тасдиқ шуд"
+                              : "Tasdiqlandi"
+                            : uiLang === "ru"
+                            ? "Отклонено"
+                            : uiLang === "en"
+                            ? "Rejected"
+                            : uiLang === "tj"
+                            ? "Рад шуд"
                             : "Rad etildi"}
                         </span>
                       </div>

@@ -10,10 +10,7 @@ dotenv.config();
 const PORT = Number(process.env.PORT) || 3000;
 const MODEL_CANDIDATES = [
   "gemini-4-hydrogen",
-  "gemini-3.6-flash",
-  "gemini-3.5-flash",
   "gemini-3.1-flash-lite",
-  "gemini-3.5-flash-lite",
 ] as const;
 
 function getGeminiClient(): GoogleGenAI {
@@ -111,6 +108,37 @@ function isFallbackableModelError(err: unknown): boolean {
   );
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`503 ${label} timeout after ${ms}ms`));
+    }, ms);
+    promise.then(
+      (val) => {
+        clearTimeout(timer);
+        resolve(val);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
+function summarizeErrCode(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (msg.includes("timeout")) return "timeout";
+  if (msg.includes("404") || msg.includes("NOT_FOUND")) return "404";
+  if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")) return "429";
+  if (msg.includes("503") || msg.includes("UNAVAILABLE") || msg.includes("high demand")) return "503";
+  if (msg.includes("400")) return "400";
+  if (msg.includes("500")) return "500";
+  return msg.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 48);
+}
+
+const errorTraceMap = new WeakMap<object, string>();
+
 async function generateWithModelFallback(
   ai: GoogleGenAI,
   params: {
@@ -119,28 +147,54 @@ async function generateWithModelFallback(
   }
 ) {
   let lastErr: unknown;
-  for (const model of MODEL_CANDIDATES) {
-    try {
-      const config = params.config ? { ...params.config } : undefined;
-      if (config && model !== "gemini-4-hydrogen") {
-        delete config.thinkingConfig;
-      }
-      return await ai.models.generateContent({
-        model,
-        contents: params.contents,
-        config,
-      });
-    } catch (err) {
-      lastErr = err;
-      const msg = (err instanceof Error ? err.message : String(err))
-        .replace(/AIza[0-9A-Za-z_-]{10,}/g, "[REDACTED]")
-        .slice(0, 220);
-      console.warn(`[Gemini fallback] Model ${model} failed:`, msg);
-      if (!isFallbackableModelError(err)) {
-        throw err;
-      }
-      await new Promise((r) => setTimeout(r, 250));
+  const attempts: string[] = [];
+  const backoffDelaysMs = [0, 1500, 3000];
+
+  for (let round = 0; round < backoffDelaysMs.length; round += 1) {
+    if (backoffDelaysMs[round] > 0) {
+      await new Promise((r) => setTimeout(r, backoffDelaysMs[round]));
     }
+    for (const model of MODEL_CANDIDATES) {
+      const t0 = Date.now();
+      try {
+        const config = params.config ? { ...params.config } : undefined;
+        if (config && model !== "gemini-4-hydrogen") {
+          delete config.thinkingConfig;
+        }
+        const timeoutMs = model === "gemini-4-hydrogen" ? 35000 : 25000;
+        const result = await withTimeout(
+          ai.models.generateContent({
+            model,
+            contents: params.contents,
+            config,
+          }),
+          timeoutMs,
+          model
+        );
+        attempts.push(`${model}:ok(${Date.now() - t0}ms)`);
+        return result;
+      } catch (err) {
+        lastErr = err;
+        const code = summarizeErrCode(err);
+        attempts.push(`${model}:${code}(${Date.now() - t0}ms)`);
+        const msg = (err instanceof Error ? err.message : String(err))
+          .replace(/AIza[0-9A-Za-z_-]{10,}/g, "[REDACTED]")
+          .slice(0, 220);
+        console.warn(`[Gemini fallback r${round + 1}] Model ${model} failed:`, msg);
+        if (!isFallbackableModelError(err)) {
+          if (err && typeof err === "object") {
+            errorTraceMap.set(err, attempts.join(", "));
+          }
+          throw err;
+        }
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    }
+  }
+  const trace = attempts.join(", ");
+  console.error("[Gemini fallback exhausted]", trace);
+  if (lastErr && typeof lastErr === "object") {
+    errorTraceMap.set(lastErr, trace);
   }
   throw lastErr;
 }
@@ -357,6 +411,8 @@ Rules:
       });
     } catch (err) {
       const { status, message } = parseErrorResponse(err);
+      const trace = err && typeof err === "object" ? errorTraceMap.get(err) : undefined;
+      if (trace) res.setHeader("X-Gemini-Trace", trace);
       res.status(status).json({ error: message });
     }
   });
@@ -413,6 +469,8 @@ ${text.trim()}
       });
     } catch (err) {
       const { status, message } = parseErrorResponse(err);
+      const trace = err && typeof err === "object" ? errorTraceMap.get(err) : undefined;
+      if (trace) res.setHeader("X-Gemini-Trace", trace);
       res.status(status).json({ error: message });
     }
   });

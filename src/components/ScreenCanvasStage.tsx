@@ -456,7 +456,7 @@ export const ScreenCanvasStage: React.FC<ScreenCanvasStageProps> = ({
                 </div>
                 <div className="px-0.5 space-y-0.5">
                   <p className="text-xs font-semibold text-slate-900 dark:text-white truncate group-hover:text-[#2563EB]">
-                    {preset.detectedLanguage} → O'zbekcha
+                    {preset.sourceCode.toUpperCase()} → UZ ({t.tabTranslated})
                   </p>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                     {preset.langHint}

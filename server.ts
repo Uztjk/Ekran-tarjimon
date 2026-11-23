@@ -8,7 +8,13 @@ import { GoogleGenAI, ThinkingLevel, Type } from "@google/genai";
 dotenv.config();
 
 const PORT = Number(process.env.PORT) || 3000;
-const MODEL_NAME = "gemini-4-hydrogen";
+const MODEL_CANDIDATES = [
+  "gemini-4-hydrogen",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
+  "gemini-3.1-flash-lite",
+  "gemini-3.5-flash-lite",
+] as const;
 
 function getGeminiClient(): GoogleGenAI {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -47,7 +53,10 @@ interface TranslateTextBody {
 
 function parseErrorResponse(err: unknown): { status: number; message: string } {
   const raw = err instanceof Error ? err.message : String(err);
-  if (raw === "API_KEY_MISSING" || raw.includes("API_KEY_INVALID")) {
+  const safeReason = raw.replace(/AIza[0-9A-Za-z_-]{10,}/g, "[REDACTED]").slice(0, 260);
+  console.error("[Translate Error]", safeReason);
+
+  if (raw === "API_KEY_MISSING" || raw.includes("API_KEY_INVALID") || raw.includes("API key not valid")) {
     return {
       status: 400,
       message:
@@ -68,6 +77,13 @@ function parseErrorResponse(err: unknown): { status: number; message: string } {
         "So'rovlar limiti tugadi. Biroz kutib qayta urinib ko'ring yoki Settings > Secrets panelidan tarifni yangilang.",
     };
   }
+  if (raw.includes("503") || raw.includes("UNAVAILABLE") || raw.includes("high demand")) {
+    return {
+      status: 503,
+      message:
+        "Tarjima serveri hozir juda band. Iltimos, bir necha soniyadan so'ng qayta urinib ko'ring.",
+    };
+  }
   if (raw.includes("NOT_FOUND") || raw.includes("404")) {
     return {
       status: 404,
@@ -80,22 +96,64 @@ function parseErrorResponse(err: unknown): { status: number; message: string } {
   };
 }
 
-async function withRetry<T>(fn: () => Promise<T>, retries = 1): Promise<T> {
-  try {
-    return await fn();
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    const isTransient =
-      msg.includes("503") ||
-      msg.includes("500") ||
-      msg.includes("UNAVAILABLE") ||
-      msg.includes("fetch failed");
-    if (retries > 0 && isTransient) {
-      await new Promise((r) => setTimeout(r, 700));
-      return withRetry(fn, retries - 1);
-    }
-    throw err;
+function isFallbackableModelError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return (
+    msg.includes("503") ||
+    msg.includes("500") ||
+    msg.includes("429") ||
+    msg.includes("404") ||
+    msg.includes("UNAVAILABLE") ||
+    msg.includes("RESOURCE_EXHAUSTED") ||
+    msg.includes("NOT_FOUND") ||
+    msg.includes("high demand") ||
+    msg.includes("fetch failed")
+  );
+}
+
+async function generateWithModelFallback(
+  ai: GoogleGenAI,
+  params: {
+    contents: Parameters<GoogleGenAI["models"]["generateContent"]>[0]["contents"];
+    config?: Record<string, unknown>;
   }
+) {
+  let lastErr: unknown;
+  for (const model of MODEL_CANDIDATES) {
+    try {
+      const config = params.config ? { ...params.config } : undefined;
+      if (config && model !== "gemini-4-hydrogen") {
+        delete config.thinkingConfig;
+      }
+      return await ai.models.generateContent({
+        model,
+        contents: params.contents,
+        config,
+      });
+    } catch (err) {
+      lastErr = err;
+      const msg = (err instanceof Error ? err.message : String(err))
+        .replace(/AIza[0-9A-Za-z_-]{10,}/g, "[REDACTED]")
+        .slice(0, 220);
+      console.warn(`[Gemini fallback] Model ${model} failed:`, msg);
+      if (!isFallbackableModelError(err)) {
+        throw err;
+      }
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  }
+  throw lastErr;
+}
+
+function extractCleanJson(text: string): string {
+  const trimmed = text.trim();
+  if (trimmed.startsWith("```")) {
+    return trimmed
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/, "")
+      .trim();
+  }
+  return trimmed;
 }
 
 async function startServer() {
@@ -165,77 +223,74 @@ Rules:
 
       const startTime = Date.now();
 
-      const response = await withRetry(() =>
-        ai.models.generateContent({
-          model: MODEL_NAME,
-          contents: {
-            parts: [
-              {
-                inlineData: {
-                  mimeType,
-                  data: cleanBase64,
-                },
+      const response = await generateWithModelFallback(ai, {
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                mimeType,
+                data: cleanBase64,
               },
-              {
-                text: `Extract all visible text blocks with 0-1000 [ymin, xmin, ymax, xmax] coordinates and translate them into ${targetLangName}.`,
-              },
-            ],
-          },
-          config: {
-            systemInstruction,
-            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                detectedLanguage: {
-                  type: Type.STRING,
-                  description: "Detected primary language name in target language.",
-                },
-                summary: {
-                  type: Type.STRING,
-                  description: "Concise 1-sentence summary of the screen content in target language.",
-                },
-                blocks: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      id: { type: Type.STRING },
-                      originalText: { type: Type.STRING },
-                      translatedText: { type: Type.STRING },
-                      box_2d: {
-                        type: Type.ARRAY,
-                        items: { type: Type.INTEGER },
-                        description: "[ymin, xmin, ymax, xmax] normalized 0 to 1000",
-                      },
-                      category: {
-                        type: Type.STRING,
-                        description: "One of: heading, button, label, body, status",
-                      },
-                      bgTone: {
-                        type: Type.STRING,
-                        description: "One of: light, dark, accent",
-                      },
-                    },
-                    required: [
-                      "id",
-                      "originalText",
-                      "translatedText",
-                      "box_2d",
-                      "category",
-                      "bgTone",
-                    ],
-                  },
-                },
-              },
-              required: ["detectedLanguage", "summary", "blocks"],
             },
+            {
+              text: `Extract all visible text blocks with 0-1000 [ymin, xmin, ymax, xmax] coordinates and translate them into ${targetLangName}.`,
+            },
+          ],
+        },
+        config: {
+          systemInstruction,
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              detectedLanguage: {
+                type: Type.STRING,
+                description: "Detected primary language name in target language.",
+              },
+              summary: {
+                type: Type.STRING,
+                description: "Concise 1-sentence summary of the screen content in target language.",
+              },
+              blocks: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: { type: Type.STRING },
+                    originalText: { type: Type.STRING },
+                    translatedText: { type: Type.STRING },
+                    box_2d: {
+                      type: Type.ARRAY,
+                      items: { type: Type.INTEGER },
+                      description: "[ymin, xmin, ymax, xmax] normalized 0 to 1000",
+                    },
+                    category: {
+                      type: Type.STRING,
+                      description: "One of: heading, button, label, body, status",
+                    },
+                    bgTone: {
+                      type: Type.STRING,
+                      description: "One of: light, dark, accent",
+                    },
+                  },
+                  required: [
+                    "id",
+                    "originalText",
+                    "translatedText",
+                    "box_2d",
+                    "category",
+                    "bgTone",
+                  ],
+                },
+              },
+            },
+            required: ["detectedLanguage", "summary", "blocks"],
           },
-        })
-      );
+        },
+      });
 
-      const rawText = (response.text ?? "{}").trim();
+      const rawText = extractCleanJson(response.text ?? "{}");
       const parsed = JSON.parse(rawText) as {
         detectedLanguage?: string;
         summary?: string;
@@ -305,36 +360,33 @@ Rules:
       }
 
       const ai = getGeminiClient();
-      const response = await withRetry(() =>
-        ai.models.generateContent({
-          model: MODEL_NAME,
-          contents: `Source language: ${sourceLang === "auto" ? "Auto-detect" : sourceLangName}.
+      const response = await generateWithModelFallback(ai, {
+        contents: `Source language: ${sourceLang === "auto" ? "Auto-detect" : sourceLangName}.
 Target language: ${targetLangName} (${targetLang}).
 ${context ? `UI Context: ${context}\n` : ""}Text to translate:
 """
 ${text.trim()}
 """`,
-          config: {
-            systemInstruction: `You are an expert mobile UI and natural language translator. Translate accurately into ${targetLangName} and provide 2 concise alternative phrasings suitable for phone screens. Return detectedLanguage in ${targetLangName}.`,
-            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                translatedText: { type: Type.STRING },
-                detectedLanguage: { type: Type.STRING },
-                alternatives: {
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING },
-                },
+        config: {
+          systemInstruction: `You are an expert mobile UI and natural language translator. Translate accurately into ${targetLangName} and provide 2 concise alternative phrasings suitable for phone screens. Return detectedLanguage in ${targetLangName}.`,
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              translatedText: { type: Type.STRING },
+              detectedLanguage: { type: Type.STRING },
+              alternatives: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
               },
-              required: ["translatedText", "detectedLanguage", "alternatives"],
             },
+            required: ["translatedText", "detectedLanguage", "alternatives"],
           },
-        })
-      );
+        },
+      });
 
-      const parsed = JSON.parse((response.text ?? "{}").trim());
+      const parsed = JSON.parse(extractCleanJson(response.text ?? "{}"));
       res.json({
         translatedText: parsed.translatedText || text,
         detectedLanguage: parsed.detectedLanguage || "Aniqlangan",
@@ -1059,15 +1111,12 @@ ${text.trim()}
         } else if (rawText && !rawText.startsWith("/")) {
           try {
             const ai = getGeminiClient();
-            const reply = await withRetry(() =>
-              ai.models.generateContent({
-                model: MODEL_NAME,
-                contents: `Translate the following message naturally into Uzbek (or if it is already in Uzbek, translate it into clear English). Keep it concise and helpful:\n\n"""\n${rawText.slice(0, 600)}\n"""`,
-                config: {
-                  thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-                },
-              })
-            );
+            const reply = await generateWithModelFallback(ai, {
+              contents: `Translate the following message naturally into Uzbek (or if it is already in Uzbek, translate it into clear English). Keep it concise and helpful:\n\n"""\n${rawText.slice(0, 600)}\n"""`,
+              config: {
+                thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+              },
+            });
             const translated = (reply.text ?? "").trim();
             if (translated) {
               await callTelegramMethod(token, "sendMessage", {

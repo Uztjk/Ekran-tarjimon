@@ -23,6 +23,7 @@ import {
   REFERRAL_INVITER_BONUS,
   useAuth,
 } from "../contexts/AuthContext";
+import { useUiLang } from "../contexts/UiLangContext";
 import { useAdsgram } from "../hooks/useAdsgram";
 
 interface PricingModalProps {
@@ -99,6 +100,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { uiLang, t } = useUiLang();
   const {
     user,
     isAdmin,
@@ -422,7 +424,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
               id="pricing-modal-title"
               className="font-display text-lg font-bold text-slate-900 dark:text-white"
             >
-              Akkaunt va Pro tariflar
+              {t.pricingModalTitle}
             </h2>
           </div>
 
@@ -438,7 +440,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                       : "text-slate-500"
                   }`}
                 >
-                  Tariflar
+                  {t.pricingTabPlans}
                 </button>
                 <button
                   type="button"
@@ -451,7 +453,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                 >
                   <ShieldCheck className="w-3.5 h-3.5" />
                   <span>
-                    Buyurtmalar (
+                    {t.pricingTabAdmin} (
                     {adminRequests.filter((r) => r.status === "pending").length})
                   </span>
                 </button>
@@ -461,7 +463,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              aria-label="Yopish"
+              aria-label={t.closeBtn}
               className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
             >
               <X className="w-5 h-5" />
@@ -474,24 +476,30 @@ export const PricingModal: React.FC<PricingModalProps> = ({
           <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0F1521] p-4 flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="text-sm font-semibold text-slate-900 dark:text-white">
-                {user ? user.displayName || user.email : "Mehmon rejimi"}
+                {user
+                  ? user.displayName || user.email
+                  : uiLang === "ru"
+                  ? "Гостевой режим"
+                  : uiLang === "en"
+                  ? "Guest mode"
+                  : uiLang === "tj"
+                  ? "Ҳолати меҳмон"
+                  : "Mehmon rejimi"}
               </div>
               <div className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
                 {isPro ? (
-                  <span>Pro tarif faol · Cheksiz kunlik tarjima</span>
+                  <span>{t.proUnlimited}</span>
                 ) : user ? (
                   <span>
-                    Bepul tarif · Bugun qolgan limit: {remainingToday} /{" "}
-                    {FREE_USER_DAILY_LIMIT}
+                    {t.dailyLimitLabel(remainingToday, FREE_USER_DAILY_LIMIT)}
                     {quota && quota.bonusCredits > 0
                       ? ` (+${quota.bonusCredits} bonus)`
                       : ""}
                   </span>
                 ) : (
                   <span>
-                    Mehmon limiti: bugun {remainingToday} / {GUEST_DAILY_LIMIT}{" "}
-                    ta qoldi · Google bilan kirsangiz kuniga{" "}
-                    {FREE_USER_DAILY_LIMIT} ta bepul
+                    {t.dailyLimitLabel(remainingToday, GUEST_DAILY_LIMIT)} ·{" "}
+                    {t.pricingSubtitleGuest}
                   </span>
                 )}
               </div>
@@ -504,7 +512,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                 className="px-3.5 py-2 min-h-[40px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 inline-flex items-center gap-1.5 cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
-                <span>Chiqish</span>
+                <span>{t.pricingSignOut}</span>
               </button>
             ) : (
               <button
@@ -515,9 +523,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
               >
                 <LogIn className="w-4 h-4" />
                 <span>
-                  {signingIn
-                    ? "Kirilmoqda..."
-                    : "Google bilan kirish (+7 bepul limit)"}
+                  {signingIn ? t.pricingSigningIn : t.pricingSignInGoogle}
                 </span>
               </button>
             )}
@@ -791,6 +797,46 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                 {(Object.keys(PLAN_DETAILS) as PlanKey[]).map((key) => {
                   const item = PLAN_DETAILS[key];
                   const active = selectedPlan === key;
+                  const localizedTitle =
+                    uiLang === "ru"
+                      ? key === "pro_monthly"
+                        ? "Pro Месяц"
+                        : key === "pro_yearly"
+                        ? "Pro Год (−33%)"
+                        : "Пакет 100 кредитов"
+                      : uiLang === "en"
+                      ? key === "pro_monthly"
+                        ? "Pro Monthly"
+                        : key === "pro_yearly"
+                        ? "Pro Yearly (33% off)"
+                        : "100 Credits Pack"
+                      : uiLang === "tj"
+                      ? key === "pro_monthly"
+                        ? "Pro Моҳона"
+                        : key === "pro_yearly"
+                        ? "Pro Солона (33% тахфиф)"
+                        : "Бастаи 100 кредит"
+                      : item.title;
+                  const localizedDesc =
+                    uiLang === "ru"
+                      ? key === "pro_monthly"
+                        ? "Безлимитный перевод экранов, режим 1688/Taobao/Trendyol и приоритет"
+                        : key === "pro_yearly"
+                        ? "Безлимитный перевод на весь год и все будущие обновления"
+                        : "100 дополнительных переводов без подписки и срока действия"
+                      : uiLang === "en"
+                      ? key === "pro_monthly"
+                        ? "Unlimited screen translations, 1688/Taobao/Trendyol mode & priority speed"
+                        : key === "pro_yearly"
+                        ? "Unlimited translations all year plus every upcoming update"
+                        : "100 non-expiring screen translations without a subscription"
+                      : uiLang === "tj"
+                      ? key === "pro_monthly"
+                        ? "Тарҷумаи бемаҳдуди экран, ҳолати 1688/Taobao/Trendyol ва суръати баланд"
+                        : key === "pro_yearly"
+                        ? "Тарҷумаи бемаҳдуд барои як сол ва ҳамаи навсозиҳои оянда"
+                        : "100 тарҷумаи беобуна, ки муҳлаташон намегузарад"
+                      : item.desc;
                   return (
                     <button
                       key={key}
@@ -805,7 +851,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-display text-sm font-bold text-slate-900 dark:text-white">
-                            {item.title}
+                            {localizedTitle}
                           </span>
                           {active && (
                             <Check className="w-4 h-4 text-[#2563EB] shrink-0" />
@@ -821,7 +867,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                         </div>
                       </div>
                       <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                        {item.desc}
+                        {localizedDesc}
                       </p>
                     </button>
                   );
@@ -835,11 +881,11 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                     <div className="flex items-center gap-2">
                       <PlayCircle className="w-4 h-4 text-[#2563EB] shrink-0" />
                       <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white">
-                        Reklama ko&apos;rib +{AD_REWARD_CREDITS} bepul tarjima oling
+                        {t.pricingFreeAdTitle} (+{AD_REWARD_CREDITS})
                       </h3>
                     </div>
                     <p className="text-xs text-slate-600 dark:text-slate-400">
-                      Qisqa reklamani tomosha qilib kunlik balansingizga +{AD_REWARD_CREDITS} ta qo&apos;shimcha tarjima qo&apos;shing (Bugun: {adRewardsToday} / {MAX_AD_REWARDS_PER_DAY}).
+                      +{AD_REWARD_CREDITS} · {adRewardsToday} / {MAX_AD_REWARDS_PER_DAY}
                     </p>
                     {adMessage && (
                       <p className="text-xs font-medium text-[#2563EB] dark:text-[#60A5FA]">
@@ -856,10 +902,10 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                     <PlayCircle className="w-4 h-4" />
                     <span>
                       {isShowingAd
-                        ? "Yuklanmoqda..."
+                        ? t.adRewardLoading
                         : canWatchAdReward
-                        ? `Reklama ko'rish (+${AD_REWARD_CREDITS})`
-                        : "Bugungi limit tugadi"}
+                        ? t.pricingWatchAdBtn
+                        : `${adRewardsToday} / ${MAX_AD_REWARDS_PER_DAY}`}
                     </span>
                   </button>
                 </div>
@@ -871,24 +917,18 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                   <div className="flex items-center gap-2">
                     <Gift className="w-4 h-4 text-[#2563EB]" />
                     <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white">
-                      Do&apos;stlarni taklif qiling (+{REFERRAL_INVITER_BONUS}{" "}
-                      bepul tarjima)
+                      {t.pricingInviteTitle}
                     </h3>
                   </div>
                   {user && (
                     <span className="text-xs font-medium text-slate-600 dark:text-slate-300 tabular-nums">
-                      Takliflar: {referralCount} · Bonus:{" "}
-                      {quota?.bonusCredits ?? 0} ta
+                      {referralCount} · +{quota?.bonusCredits ?? 0}
                     </span>
                   )}
                 </div>
 
                 <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                  Shaxsiy havolangiz orqali kirgan har bir do&apos;stingiz Google
-                  bilan ro&apos;yxatdan o&apos;tganda unga{" "}
-                  <strong>+{REFERRAL_INVITED_BONUS} ta</strong>, sizga esa{" "}
-                  <strong>+{REFERRAL_INVITER_BONUS} ta</strong> bepul tarjima
-                  krediti avtomatik qo&apos;shiladi.
+                  {t.pricingInviteDesc} (+{REFERRAL_INVITER_BONUS} / +{REFERRAL_INVITED_BONUS})
                 </p>
 
                 {user ? (
@@ -896,7 +936,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                     <input
                       type="text"
                       readOnly
-                      aria-label="Shaxsiy taklif havolasi"
+                      aria-label={t.pricingCopyLink}
                       value={referralUrl}
                       className="flex-1 min-w-[200px] px-3 py-2 min-h-[38px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono text-xs text-slate-700 dark:text-slate-200 focus:outline-none"
                     />
@@ -911,34 +951,34 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                         <Copy className="w-3.5 h-3.5" />
                       )}
                       <span>
-                        {copiedRef ? "Nusxalandi" : "Havolani nusxalash"}
+                        {copiedRef ? t.pricingCopied : t.pricingCopyLink}
                       </span>
                     </button>
                     <a
                       href={`https://t.me/share/url?url=${encodeURIComponent(
                         referralUrl
                       )}&text=${encodeURIComponent(
-                        "🔥 1688, Taobao, Trendyol yoki ekrandagi istalgan chet tili rasmini 1 soniyada o'zbekchaga tarjima qiling! Mening havolam bilan kiring (+5 bepul tarjima) 👇\n🤖 Telegram bot: https://t.me/Ek_tarjimonbot"
+                        "🔥 1688, Taobao, Trendyol & Telegram Screen Translator (+5 credits) 👇\n🤖 https://t.me/Ek_tarjimonbot"
                       )}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-3.5 py-2 min-h-[38px] rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap"
                     >
                       <Share2 className="w-3.5 h-3.5" />
-                      <span>Taklif havolasini ulashish</span>
+                      <span>{t.pricingShareTelegram}</span>
                     </a>
                     <a
                       href={`https://t.me/share/url?url=${encodeURIComponent(
                         "https://t.me/Ek_tarjimonbot"
                       )}&text=${encodeURIComponent(
-                        "🔥 1688, Taobao, Trendyol yoki telefoningizdagi istalgan chet tili rasmini 1 soniyada o'zbekchaga tarjima qiluvchi bot! Bepul sinab ko'ring 👇"
+                        "🔥 EkranTarjimon — 1688, Taobao, Trendyol screen translator bot 👇"
                       )}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-3.5 py-2 min-h-[38px] rounded-xl border border-[#2563EB]/30 bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-xs font-semibold text-[#2563EB] dark:text-[#60A5FA] inline-flex items-center gap-1.5 whitespace-nowrap"
                     >
                       <Share2 className="w-3.5 h-3.5" />
-                      <span>Botni guruhga ulashish</span>
+                      <span>{t.pricingShareGroup}</span>
                     </a>
                   </div>
                 ) : (
@@ -949,20 +989,20 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                       className="px-3.5 py-2 min-h-[38px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-[#2563EB] dark:text-[#60A5FA] inline-flex items-center gap-1.5 cursor-pointer"
                     >
                       <LogIn className="w-3.5 h-3.5" />
-                      <span>Taklif havolasini olish uchun kiring</span>
+                      <span>{t.pricingSignInGoogle}</span>
                     </button>
                     <a
                       href={`https://t.me/share/url?url=${encodeURIComponent(
                         "https://t.me/Ek_tarjimonbot"
                       )}&text=${encodeURIComponent(
-                        "🔥 1688, Taobao, Trendyol yoki ekrandagi istalgan chet tili rasmini 1 soniyada o'zbekchaga tarjima qiluvchi bot! Bepul sinab ko'ring 👇"
+                        "🔥 EkranTarjimon — 1688, Taobao, Trendyol screen translator bot 👇"
                       )}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-3.5 py-2 min-h-[38px] rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap"
                     >
                       <Share2 className="w-3.5 h-3.5" />
-                      <span>Guruhlarga ulashish</span>
+                      <span>{t.pricingShareGroup}</span>
                     </a>
                   </div>
                 )}
@@ -975,7 +1015,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
               >
                 <div className="space-y-2">
                   <span className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    To&apos;lov usulini tanlang
+                    {t.pricingPayMethod}
                   </span>
                   <div className="flex flex-wrap gap-2">
                     {(Object.keys(METHOD_LABELS) as MethodKey[]).map((m) => (
@@ -1000,8 +1040,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                   <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#0F1521] p-3.5 space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-xs font-semibold text-slate-900 dark:text-white">
-                        Telegram Stars orqali to&apos;lov (
-                        {PLAN_DETAILS[selectedPlan].starsAmount} ★) ·{" "}
+                        Telegram Stars ({PLAN_DETAILS[selectedPlan].starsAmount} ★) ·{" "}
                         {ADMIN_TELEGRAM_HANDLE}
                       </p>
                       <a
@@ -1010,7 +1049,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                         rel="noopener noreferrer"
                         className="px-3 py-1.5 min-h-[36px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-[#2563EB] dark:text-[#60A5FA] hover:bg-slate-100 dark:hover:bg-slate-800 inline-flex items-center whitespace-nowrap"
                       >
-                        Telegramda yozish
+                        {t.pricingSupportLink}
                       </a>
                     </div>
 
@@ -1025,8 +1064,8 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                           <Sparkles className="w-3.5 h-3.5" />
                           <span>
                             {starsLoading
-                              ? "Havola tayyorlanmoqda..."
-                              : `Telegram Stars bilan to'lash (${PLAN_DETAILS[selectedPlan].starsAmount} ★)`}
+                              ? t.adRewardLoading
+                              : `${t.pricingPayStarsBtn} (${PLAN_DETAILS[selectedPlan].starsAmount} ★)`}
                           </span>
                         </button>
                         {starsInvoiceUrl && (
@@ -1036,15 +1075,13 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                             rel="noopener noreferrer"
                             className="px-3.5 py-2 min-h-[40px] rounded-xl border border-[#2563EB] text-xs font-semibold text-[#2563EB] dark:text-[#60A5FA] hover:bg-[#2563EB]/10 inline-flex items-center whitespace-nowrap"
                           >
-                            Telegramda hisobni ochish
+                            Telegram Stars
                           </a>
                         )}
                       </div>
                     )}
 
                     <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                      Pastdagi maydonga Telegram @username&apos;ingizni yozib
-                      so&apos;rov yuboring yoki to&apos;g&apos;ridan-to&apos;g&apos;ri{" "}
                       <a
                         href={ADMIN_TELEGRAM_URL}
                         target="_blank"
@@ -1052,9 +1089,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                         className="font-semibold text-[#2563EB] dark:text-[#60A5FA] hover:underline"
                       >
                         {ADMIN_TELEGRAM_HANDLE}
-                      </a>{" "}
-                      ga yozing — sizga Telegram Stars to&apos;lov havolasi
-                      yuboriladi.
+                      </a>
                     </p>
                   </div>
                 ) : (
@@ -1062,7 +1097,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                          Qabul qiluvchi karta · Spitamen Bank (VISA)
+                          Spitamen Bank (VISA)
                         </p>
                         <p className="font-mono text-base font-bold text-slate-900 dark:text-white tracking-wider tabular-nums">
                           {SPITAMEN_CARD_NUMBER}
@@ -1080,7 +1115,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                             <Copy className="w-3.5 h-3.5" />
                           )}
                           <span>
-                            {copiedCard ? "Nusxalandi" : "Kartani nusxalash"}
+                            {copiedCard ? t.pricingCopied : t.copyBtn}
                           </span>
                         </button>
                         <a
@@ -1089,15 +1124,13 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                           rel="noopener noreferrer"
                           className="px-3 py-1.5 min-h-[38px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-[#2563EB] dark:text-[#60A5FA] hover:bg-slate-100 dark:hover:bg-slate-800 inline-flex items-center whitespace-nowrap"
                         >
-                          Chek yuborish: {ADMIN_TELEGRAM_HANDLE}
+                          {t.pricingSupportLink}
                         </a>
                       </div>
                     </div>
                     <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                      DCity, Alif, Spitamen ilovasi yoki boshqa kartadan ushbu
-                      VISA kartaga{" "}
-                      <strong>{PLAN_DETAILS[selectedPlan].priceLabel}</strong>{" "}
-                      ekvivalentini o&apos;tkazing, chekni{" "}
+                      DCity, Alif, Spitamen (VISA) ·{" "}
+                      <strong>{PLAN_DETAILS[selectedPlan].priceLabel}</strong> ·{" "}
                       <a
                         href={ADMIN_TELEGRAM_URL}
                         target="_blank"
@@ -1105,9 +1138,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                         className="font-semibold text-[#2563EB] dark:text-[#60A5FA] hover:underline"
                       >
                         {ADMIN_TELEGRAM_HANDLE}
-                      </a>{" "}
-                      ga yuboring va pastda karta oxirgi 4 raqamingizni
-                      qoldiring.
+                      </a>
                     </p>
                   </div>
                 )}
@@ -1117,7 +1148,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                     htmlFor="payment-note"
                     className="block text-xs font-medium text-slate-600 dark:text-slate-400"
                   >
-                    Telegram username, karta oxirgi 4 raqami yoki telefon (+992)
+                    {t.pricingPayNotePlaceholder}
                   </label>
                   <input
                     id="payment-note"
@@ -1125,7 +1156,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                     maxLength={240}
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
-                    placeholder="Masalan: @username, *4512 yoki +992 90 ..."
+                    placeholder={t.pricingPayNotePlaceholder}
                     className="w-full px-3.5 py-2.5 min-h-[42px] rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#0B0F17] text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
                   />
                 </div>
@@ -1138,7 +1169,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <span className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-                    Jami: <strong>{PLAN_DETAILS[selectedPlan].priceLabel}</strong>
+                    <strong>{PLAN_DETAILS[selectedPlan].priceLabel}</strong>
                   </span>
                   <button
                     type="submit"
@@ -1146,10 +1177,10 @@ export const PricingModal: React.FC<PricingModalProps> = ({
                     className="px-5 py-2.5 min-h-[44px] rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] disabled:opacity-50 text-white text-sm font-semibold cursor-pointer"
                   >
                     {isPro
-                      ? "Sizda Pro faol"
+                      ? t.proUnlimited
                       : submitting
-                      ? "Yuborilmoqda..."
-                      : `${METHOD_LABELS[paymentMethod]} orqali so'rov yuborish`}
+                      ? t.adRewardLoading
+                      : `${t.pricingSubmitRequest} (${METHOD_LABELS[paymentMethod]})`}
                   </button>
                 </div>
               </form>

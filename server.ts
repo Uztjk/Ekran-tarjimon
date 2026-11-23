@@ -146,14 +146,32 @@ async function generateWithModelFallback(
 }
 
 function extractCleanJson(text: string): string {
-  const trimmed = text.trim();
-  if (trimmed.startsWith("```")) {
-    return trimmed
+  let cleaned = text.trim();
+  if (cleaned.startsWith("```")) {
+    cleaned = cleaned
       .replace(/^```(?:json)?\s*/i, "")
       .replace(/\s*```$/, "")
       .trim();
   }
-  return trimmed;
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    return cleaned.slice(firstBrace, lastBrace + 1);
+  }
+  return cleaned;
+}
+
+const ALLOWED_IMAGE_MIMES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+]);
+
+function normalizeImageMime(mime?: string): string {
+  const lower = (mime || "").toLowerCase().split(";")[0].trim();
+  if (ALLOWED_IMAGE_MIMES.has(lower)) return lower;
+  return "image/jpeg";
 }
 
 async function startServer() {
@@ -169,7 +187,7 @@ async function startServer() {
       const body = req.body as TranslateScreenBody;
       const {
         imageBase64,
-        mimeType = "image/png",
+        mimeType = "image/jpeg",
         sourceLang = "auto",
         targetLang = "uz",
         sourceLangName = "Avto-aniqlash",
@@ -183,7 +201,8 @@ async function startServer() {
         return;
       }
 
-      const cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z+]+;base64,/, "");
+      const safeMimeType = normalizeImageMime(mimeType);
+      const cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
       const ai = getGeminiClient();
 
       const sourceInstruction =
@@ -228,7 +247,7 @@ Rules:
           parts: [
             {
               inlineData: {
-                mimeType,
+                mimeType: safeMimeType,
                 data: cleanBase64,
               },
             },

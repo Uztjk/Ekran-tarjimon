@@ -8,6 +8,7 @@ import {
   Volume2,
 } from "lucide-react";
 import { getLanguageByCode } from "../constants/languages";
+import { useUiLang } from "../contexts/UiLangContext";
 import type { BlockCategory, TextBlock } from "../types/translator";
 
 interface InspectorPanelProps {
@@ -24,15 +25,6 @@ interface InspectorPanelProps {
 
 type FilterType = "all" | BlockCategory;
 
-const CATEGORY_LABELS: Record<FilterType, string> = {
-  all: "Hammasi",
-  heading: "Sarlavha",
-  button: "Tugma",
-  label: "Yorliq",
-  body: "Matn",
-  status: "Holat",
-};
-
 export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   blocks,
   summary,
@@ -44,6 +36,15 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   onUpdateBlockText,
   isTranslating,
 }) => {
+  const { t } = useUiLang();
+  const categoryLabels: Record<FilterType, string> = {
+    all: t.catAll,
+    heading: t.catHeading,
+    button: t.catButton,
+    label: t.catLabel,
+    body: t.catBody,
+    status: t.catStatus,
+  };
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -153,7 +154,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
       <div className="p-5 border-b border-slate-200 dark:border-slate-800 space-y-2.5">
         <div className="flex items-center justify-between gap-3">
           <h2 className="font-display text-base font-bold text-slate-900 dark:text-white">
-            Aniqlangan matnlar
+            {t.detectedTextsTitle}
           </h2>
           {blocks.length > 0 && (
             <div className="flex items-center gap-1.5">
@@ -167,12 +168,12 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                 ) : (
                   <Copy className="w-3.5 h-3.5" />
                 )}
-                <span>{copiedAll ? "Nusxalandi" : "Barchasi"}</span>
+                <span>{copiedAll ? t.copiedBtn : t.copyAllBtn}</span>
               </button>
               <button
                 type="button"
                 onClick={exportTxt}
-                aria-label="Matnni TXT fayl sifatida yuklab olish"
+                aria-label="TXT"
                 className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />
@@ -183,7 +184,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
 
         {blocks.length > 0 ? (
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-            <span>{blocks.length} ta blok</span>
+            <span>{t.blocksCount(blocks.length)}</span>
             <span aria-hidden="true">·</span>
             <span>
               {detectedLanguage} → {targetName}
@@ -197,9 +198,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
           </div>
         ) : (
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            {isTranslating
-              ? "Ekran tahlil qilinmoqda..."
-              : "Skrinshot yuklanganda barcha matn bloklari shu yerda ko'rinadi."}
+            {isTranslating ? t.analyzingStatus : t.inspectorEmptyHint}
           </p>
         )}
 
@@ -215,7 +214,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
         <div className="p-4 bg-slate-50 dark:bg-[#0F1521] border-b border-slate-200 dark:border-slate-800 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-[#2563EB] dark:text-[#60A5FA]">
-              Tanlangan blok · {CATEGORY_LABELS[selectedBlock.category]}
+              {t.selectedBlockLabel} · {categoryLabels[selectedBlock.category]}
             </span>
             <button
               type="button"
@@ -225,13 +224,13 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
               }}
               className="text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer"
             >
-              Yopish
+              {t.closeBtn}
             </button>
           </div>
 
           <div className="space-y-1">
             <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
-              Asl matn
+              {t.originalTextLabel}
             </p>
             <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
               {selectedBlock.originalText}
@@ -243,7 +242,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
               htmlFor="selected-translation-input"
               className="block text-[11px] font-medium text-slate-400 dark:text-slate-500"
             >
-              Tarjima (tahrirlash mumkin)
+              {t.editableTranslationLabel}
             </label>
             <textarea
               id="selected-translation-input"
@@ -265,7 +264,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
               ) : (
                 <Copy className="w-3.5 h-3.5" />
               )}
-              <span>Nusxalash</span>
+              <span>{t.copyBtn}</span>
             </button>
 
             <button
@@ -274,7 +273,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
               className="px-3 py-1.5 min-h-[36px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 inline-flex items-center gap-1.5 cursor-pointer"
             >
               <Volume2 className="w-3.5 h-3.5" />
-              <span>Tinglash</span>
+              <span>{t.listenBtn}</span>
             </button>
 
             <button
@@ -284,14 +283,14 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
               className="px-3 py-1.5 min-h-[36px] rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               <Sparkles className="w-3.5 h-3.5 text-[#2563EB]" />
-              <span>{refiningId === selectedBlock.id ? "Izlanmoqda..." : "Muqobil variantlar"}</span>
+              <span>{refiningId === selectedBlock.id ? t.alternativesLoading : t.alternativesBtn}</span>
             </button>
           </div>
 
           {alternatives.length > 0 && (
             <div className="pt-1 space-y-1.5">
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Muqobil tarjima takliflari:
+                {t.alternativesHeading}
               </p>
               <div className="flex flex-col gap-1.5">
                 {alternatives.map((alt, i) => (
@@ -319,7 +318,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Matn bo'yicha qidirish..."
+              placeholder={t.searchPlaceholder}
               className="w-full pl-9 pr-3 py-2 min-h-[40px] rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#0B0F17] text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
             />
           </div>
@@ -337,7 +336,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                       : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                   }`}
                 >
-                  {CATEGORY_LABELS[cat]}
+                  {categoryLabels[cat]}
                 </button>
               )
             )}
@@ -348,12 +347,45 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
       {/* Blocks List */}
       <div className="flex-1 overflow-y-auto max-h-[540px] divide-y divide-slate-100 dark:divide-slate-800/80">
         {blocks.length === 0 ? (
-          <div className="p-8 text-center text-xs text-slate-400 dark:text-slate-500">
-            Hozircha matn bloklari yo'q. Chap tomondan skrinshot yoki namuna ekran tanlang.
+          <div className="p-5 space-y-4">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">
+                {t.inspectorCapsTitle}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                {t.inspectorCapsSubtitle}
+              </p>
+            </div>
+            <div className="space-y-3 text-xs text-slate-600 dark:text-slate-300">
+              <div className="space-y-0.5">
+                <p className="font-semibold text-slate-800 dark:text-slate-100">
+                  {t.inspectorCap1Title}
+                </p>
+                <p className="text-slate-500 dark:text-slate-400">
+                  {t.inspectorCap1Desc}
+                </p>
+              </div>
+              <div className="space-y-0.5">
+                <p className="font-semibold text-slate-800 dark:text-slate-100">
+                  {t.inspectorCap2Title}
+                </p>
+                <p className="text-slate-500 dark:text-slate-400">
+                  {t.inspectorCap2Desc}
+                </p>
+              </div>
+              <div className="space-y-0.5">
+                <p className="font-semibold text-slate-800 dark:text-slate-100">
+                  {t.inspectorCap3Title}
+                </p>
+                <p className="text-slate-500 dark:text-slate-400">
+                  {t.inspectorCap3Desc}
+                </p>
+              </div>
+            </div>
           </div>
         ) : filteredBlocks.length === 0 ? (
           <div className="p-8 text-center text-xs text-slate-500 dark:text-slate-400">
-            Qidiruv bo'yicha mos matn topilmadi.
+            {t.noSearchMatch}
           </div>
         ) : (
           filteredBlocks.map((block, index) => {
@@ -373,7 +405,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                     <div className="flex items-center gap-2 text-[11px] text-slate-400 dark:text-slate-500 tabular-nums">
                       <span className="font-mono">{String(index + 1).padStart(2, "0")}</span>
                       <span aria-hidden="true">·</span>
-                      <span>{CATEGORY_LABELS[block.category]}</span>
+                      <span>{categoryLabels[block.category]}</span>
                     </div>
                     <p className="text-sm font-medium text-slate-900 dark:text-white break-words">
                       {block.translatedText}
@@ -389,7 +421,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                       e.stopPropagation();
                       copyText(block.translatedText, block.id);
                     }}
-                    aria-label="Tarjimani nusxalash"
+                    aria-label={t.copyBtn}
                     className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0 cursor-pointer"
                   >
                     {copiedId === block.id ? (

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Camera, Monitor, RefreshCw, Upload, X } from "lucide-react";
+import { useUiLang } from "../contexts/UiLangContext";
 
 export type CaptureKind = "camera" | "screen";
 
@@ -16,6 +17,7 @@ export const CaptureModal: React.FC<CaptureModalProps> = ({
   onCaptureFrame,
   onSwitchToUpload,
 }) => {
+  const { uiLang, t } = useUiLang();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -99,19 +101,57 @@ export const CaptureModal: React.FC<CaptureModalProps> = ({
         const msg = err instanceof Error ? err.message : String(err);
         if (msg === "SCREEN_UNSUPPORTED") {
           setErrorMsg(
-            "Bu brauzerda jonli ekran ulashish qo'llab-quvvatlanmaydi (ko'pincha mobil brauzerlarda cheklangan). Telefon skrinshotini yuklang yoki kameradan foydalaning."
+            uiLang === "ru"
+              ? "Захват экрана не поддерживается в этом браузере. Загрузите скриншот или используйте камеру."
+              : uiLang === "en"
+              ? "Screen capture is not supported in this browser. Upload a screenshot or use Camera."
+              : uiLang === "tj"
+              ? "Мубодилаи экран дар ин браузер дастгирӣ намешавад. Скриншот бор кунед ё аз камера истифода баред."
+              : "Bu brauzerda jonli ekran ulashish qo'llab-quvvatlanmaydi. Telefon skrinshotini yuklang yoki kameradan foydalaning."
           );
         } else if (msg === "UNSUPPORTED") {
-          setErrorMsg("Ushbu qurilmada kamera yoki ekran yozib olish imkoniyati topilmadi.");
+          setErrorMsg(
+            uiLang === "ru"
+              ? "Камера или захват экрана не найдены на устройстве."
+              : uiLang === "en"
+              ? "Camera or screen capture is unavailable on this device."
+              : uiLang === "tj"
+              ? "Дар ин дастгоҳ камера ё мубодилаи экран ёфт нашуд."
+              : "Ushbu qurilmada kamera yoki ekran yozib olish imkoniyati topilmadi."
+          );
         } else if (msg.includes("NotAllowedError") || msg.includes("Permission")) {
           setErrorMsg(
-            mode === "camera"
+            uiLang === "ru"
+              ? mode === "camera"
+                ? "Доступ к камере запрещён. Разрешите доступ в настройках браузера или загрузите скриншот."
+                : "Захват экрана отменён или доступ запрещён."
+              : uiLang === "en"
+              ? mode === "camera"
+                ? "Camera permission denied. Allow access in browser settings or upload a screenshot."
+                : "Screen share was cancelled or permission was denied."
+              : uiLang === "tj"
+              ? mode === "camera"
+                ? "Ба камера иҷозат дода нашуд. Дар танзимоти браузер иҷозат диҳед ё скриншот бор кунед."
+                : "Мубодилаи экран бекор шуд ё иҷозат дода нашуд."
+              : mode === "camera"
               ? "Kameraga ruxsat berilmadi. Brauzer sozlamalaridan ruxsatni yoqing yoki skrinshot yuklang."
               : "Ekran ulashish bekor qilindi yoki ruxsat berilmadi."
           );
         } else {
           setErrorMsg(
-            mode === "camera"
+            uiLang === "ru"
+              ? mode === "camera"
+                ? "Не удалось запустить камеру. Проверьте подключение."
+                : "Не удалось начать захват экрана. Вы можете загрузить файл скриншота."
+              : uiLang === "en"
+              ? mode === "camera"
+                ? "Unable to start camera. Check your device permissions."
+                : "Unable to start screen capture. Try uploading a screenshot instead."
+              : uiLang === "tj"
+              ? mode === "camera"
+                ? "Камераро фаъол карда нашуд."
+                : "Мубодилаи экран оғоз нашуд. Метавонед файли скриншотро бор кунед."
+              : mode === "camera"
               ? "Kamerani ishga tushirib bo'lmadi. Qurilmangizda kamera ulanganligini tekshiring."
               : "Ekran ulashishni boshlab bo'lmadi. Skrinshot faylini yuklash usulidan foydalanishingiz mumkin."
           );
@@ -175,9 +215,7 @@ export const CaptureModal: React.FC<CaptureModalProps> = ({
               id="capture-modal-title"
               className="font-display text-base font-semibold text-slate-900 dark:text-white"
             >
-              {mode === "camera"
-                ? "Kamera orqali ekranni skanerlash"
-                : "Jonli ekran oynasidan kadr olish"}
+              {mode === "camera" ? t.captureCameraTitle : t.captureScreenTitle}
             </h2>
           </div>
           <button
@@ -186,7 +224,7 @@ export const CaptureModal: React.FC<CaptureModalProps> = ({
               stopStream();
               onClose();
             }}
-            aria-label="Yopish"
+            aria-label={t.closeBtn}
             className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -210,7 +248,7 @@ export const CaptureModal: React.FC<CaptureModalProps> = ({
                   className="px-4 py-2.5 min-h-[44px] rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-sm font-semibold inline-flex items-center gap-2 cursor-pointer"
                 >
                   <Upload className="w-4 h-4" />
-                  <span>Skrinshot yuklash</span>
+                  <span>{t.uploadScreenshot}</span>
                 </button>
                 <button
                   type="button"
@@ -220,7 +258,7 @@ export const CaptureModal: React.FC<CaptureModalProps> = ({
                   }}
                   className="px-4 py-2.5 min-h-[44px] rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
                 >
-                  Bekor qilish
+                  {t.cancelBtn}
                 </button>
               </div>
             </div>
@@ -235,14 +273,12 @@ export const CaptureModal: React.FC<CaptureModalProps> = ({
                 />
                 {!isReady && (
                   <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70 text-white text-sm">
-                    {mode === "camera" ? "Kamera ishga tushmoqda..." : "Ekran tanlanmoqda..."}
+                    {mode === "camera" ? t.captureCameraStarting : t.captureScreenStarting}
                   </div>
                 )}
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                {mode === "camera"
-                  ? "Boshqa telefon yoki monitor ekranini kadrga to'g'rilang va «Kadrni tarjima qilish» tugmasini bosing."
-                  : "Telefon aks ettirilgan oyna (scrcpy, Phone Link) yoki brauzer tabini tanlab, kerakli paytda kadr oling."}
+                {mode === "camera" ? t.captureCameraHint : t.captureScreenHint}
               </p>
             </div>
           )}
@@ -259,11 +295,11 @@ export const CaptureModal: React.FC<CaptureModalProps> = ({
                 className="px-3.5 py-2.5 min-h-[44px] rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium inline-flex items-center gap-2 hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer whitespace-nowrap"
               >
                 <RefreshCw className="w-4 h-4" />
-                <span>Kamerani almashtirish</span>
+                <span>{t.captureSwitchCamera}</span>
               </button>
             ) : (
               <span className="text-xs text-slate-500 dark:text-slate-400">
-                Jonli oqim tayyor bo'lgach kadr oling
+                {t.captureStreamHint}
               </span>
             )}
 
@@ -273,7 +309,7 @@ export const CaptureModal: React.FC<CaptureModalProps> = ({
               onClick={handleCapture}
               className="px-5 py-2.5 min-h-[44px] rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-all cursor-pointer whitespace-nowrap"
             >
-              Kadrni tarjima qilish
+              {t.captureActionBtn}
             </button>
           </div>
         )}

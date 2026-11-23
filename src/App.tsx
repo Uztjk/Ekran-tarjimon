@@ -29,6 +29,7 @@ import {
   TARGET_LANGUAGES,
 } from "./constants/languages";
 import { useAuth } from "./contexts/AuthContext";
+import { useUiLang } from "./contexts/UiLangContext";
 import { useAdsgram } from "./hooks/useAdsgram";
 import type {
   AppTab,
@@ -36,11 +37,13 @@ import type {
   HistoryItem,
   NicheMode,
   TextBlock,
+  TranslatedVariant,
   TranslationResult,
   ViewMode,
 } from "./types/translator";
 import {
   cropImageRegion,
+  exportTranslatedImage,
   prepareImageForUpload,
   SAMPLE_SCREENS,
 } from "./utils/sampleScreens";
@@ -50,6 +53,7 @@ const THEME_STORAGE_KEY = "ekrantarjimon_theme_v1";
 
 export default function App() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { t } = useUiLang();
 
   const [activeTab, setActiveTab] = useState<AppTab>("translator");
   const [isDark, setIsDark] = useState<boolean>(() => {
@@ -91,6 +95,9 @@ export default function App() {
   const [summary, setSummary] = useState<string>("");
   const [durationMs, setDurationMs] = useState<number | null>(null);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [translatedVariants, setTranslatedVariants] = useState<
+    Record<string, TranslatedVariant>
+  >({});
 
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -161,9 +168,7 @@ export default function App() {
       opts?: { srcLang?: string; tgtLang?: string; isCroppedRegion?: boolean }
     ) => {
       if (!canTranslate) {
-        setErrorMessage(
-          "Bugungi bepul tarjima limitingiz tugadi. Davom etish uchun Google bilan kiring yoki Pro tarifga o'ting."
-        );
+        setErrorMessage(t.errLimitReached);
         setIsPricingOpen(true);
         return;
       }
@@ -178,27 +183,73 @@ export default function App() {
       setSelectedBlockId(null);
 
       try {
-        const res = await fetch("/api/translate-screen", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            imageBase64: dataUrl,
-            mimeType,
-            sourceLang: activeSrc,
-            targetLang: activeTgt,
-            sourceLangName: srcName,
-            targetLangName: tgtName,
-            isCroppedRegion: Boolean(opts?.isCroppedRegion),
-            nicheMode,
-          }),
+        const requestBody = JSON.stringify({
+          imageBase64: dataUrl,
+          mimeType,
+          sourceLang: activeSrc,
+          targetLang: activeTgt,
+          sourceLangName: srcName,
+          targetLangName: tgtName,
+          isCroppedRegion: Boolean(opts?.isCroppedRegion),
+          nicheMode,
         });
 
-        const payload = (await res.json()) as Partial<TranslationResult> & {
-          error?: string;
-        };
+        let payload: (Partial<TranslationResult> & { error?: string }) | null = null;
+        let lastErrorMsg = t.errDefaultTranslate;
 
-        if (!res.ok) {
-          throw new Error(payload.error || "Tarjima jarayonida xatolik yuz berdi.");
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const controller = new AbortController();
+          const timer = window.setTimeout(() => controller.abort(), 45000);
+          try {
+            const res = await fetch("/api/translate-screen", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: requestBody,
+              signal: controller.signal,
+            });
+            window.clearTimeout(timer);
+
+            const rawText = await res.text();
+            let parsed: (Partial<TranslationResult> & { error?: string }) | null = null;
+            try {
+              parsed = rawText
+                ? (JSON.parse(rawText) as Partial<TranslationResult> & { error?: string })
+                : null;
+            } catch {
+              parsed = null;
+            }
+
+            if (res.ok && parsed) {
+              payload = parsed;
+              break;
+            }
+
+            if (res.status === 413) {
+              lastErrorMsg = t.errTooLarge;
+              break;
+            }
+
+            lastErrorMsg =
+              parsed?.error ||
+              (res.status >= 502 && res.status <= 504
+                ? t.errServerWaking
+                : t.errDefaultTranslate);
+
+            const shouldRetry = attempt === 0 && (res.status >= 502 || res.status === 429);
+            if (!shouldRetry) break;
+            await new Promise((r) => setTimeout(r, 1400));
+          } catch (fetchErr) {
+            window.clearTimeout(timer);
+            const isAbort = fetchErr instanceof Error && fetchErr.name === "AbortError";
+            lastErrorMsg = isAbort ? t.errTimeout : t.errNetwork;
+            if (attempt === 0) {
+              await new Promise((r) => setTimeout(r, 1200));
+            }
+          }
+        }
+
+        if (!payload) {
+          throw new Error(lastErrorMsg);
         }
 
         const resultBlocks = Array.isArray(payload.blocks) ? payload.blocks : [];
@@ -212,10 +263,19 @@ export default function App() {
         setDurationMs(ms);
 
         if (resultBlocks.length === 0) {
-          setErrorMessage(
-            "Ushbu tasvirda o'qiladigan matn topilmadi. Aniqroq skrinshot yuklab ko'ring."
-          );
+          setErrorMessage(t.errNoTextFound);
         } else {
+          setTranslatedVariants((prev) => ({
+            ...prev,
+            [activeTgt]: {
+              targetLang: activeTgt,
+              targetLangName: tgtName,
+              detectedLanguage: detected,
+              summary: sum,
+              blocks: resultBlocks,
+              durationMs: ms,
+            },
+          }));
           await consumeQuota();
           logTranslationToCloud({
             title,
@@ -246,7 +306,7 @@ export default function App() {
         setErrorMessage(
           err instanceof Error
             ? err.message
-            : "Server bilan bog'lanishda xatolik yuz berdi."
+            : t.errNetwork
         );
       } finally {
         setIsTranslating(false);
@@ -260,6 +320,7 @@ export default function App() {
       consumeQuota,
       logTranslationToCloud,
       saveToHistory,
+      t,
     ]
   );
 
@@ -274,6 +335,7 @@ export default function App() {
         setImageMimeType(prepared.mimeType);
         setScreenTitle(cleanTitle);
         setBlocks([]);
+        setTranslatedVariants({});
         await translateImage(prepared.dataUrl, prepared.mimeType, cleanTitle);
       } catch (err) {
         setErrorMessage(
@@ -308,15 +370,36 @@ export default function App() {
     const preset = SAMPLE_SCREENS.find((s) => s.id === presetId);
     if (!preset) return;
     setActiveTab("translator");
+    setErrorMessage(null);
+    setSelectedBlockId(null);
     const dataUrl = preset.generate();
     setImageDataUrl(dataUrl);
     setImageMimeType("image/png");
     setScreenTitle(preset.label);
     setSourceLang(preset.sourceCode);
-    setBlocks([]);
-    await translateImage(dataUrl, "image/png", preset.label, {
-      srcLang: preset.sourceCode,
-    });
+
+    const uzVariant: TranslatedVariant = {
+      targetLang: "uz",
+      targetLangName: getLanguageByCode("uz").nameUz,
+      detectedLanguage: preset.detectedLanguage,
+      summary: preset.summary,
+      blocks: preset.previewBlocks,
+      durationMs: 0,
+    };
+    setTranslatedVariants({ uz: uzVariant });
+
+    if (targetLang === "uz") {
+      setBlocks(preset.previewBlocks);
+      setDetectedLanguage(preset.detectedLanguage);
+      setSummary(preset.summary);
+      setDurationMs(0);
+    } else {
+      setBlocks([]);
+      await translateImage(dataUrl, "image/png", preset.label, {
+        srcLang: preset.sourceCode,
+        tgtLang: targetLang,
+      });
+    }
   };
 
   const handleCaptureFrame = async (
@@ -330,6 +413,7 @@ export default function App() {
     setImageMimeType(mimeType);
     setScreenTitle(label);
     setBlocks([]);
+    setTranslatedVariants({});
     await translateImage(dataUrl, mimeType, label);
   };
 
@@ -343,6 +427,7 @@ export default function App() {
       const cropTitle = `${screenTitle} (kesilgan hudud)`;
       setScreenTitle(cropTitle);
       setBlocks([]);
+      setTranslatedVariants({});
       await translateImage(cropped.dataUrl, cropped.mimeType, cropTitle, {
         isCroppedRegion: true,
       });
@@ -353,9 +438,27 @@ export default function App() {
     }
   };
 
+  const handleSelectVariant = (langCode: string) => {
+    const existing = translatedVariants[langCode];
+    if (!existing) return;
+    setTargetLang(langCode);
+    setBlocks(existing.blocks);
+    setDetectedLanguage(existing.detectedLanguage);
+    setSummary(existing.summary);
+    setDurationMs(existing.durationMs);
+    setSelectedBlockId(null);
+    setErrorMessage(null);
+  };
+
   const handleTargetLangChange = (newTarget: string) => {
     setTargetLang(newTarget);
-    if (imageDataUrl && !isTranslating && newTarget !== targetLang) {
+    if (!imageDataUrl || isTranslating) return;
+    const cached = translatedVariants[newTarget];
+    if (cached) {
+      handleSelectVariant(newTarget);
+      return;
+    }
+    if (newTarget !== targetLang) {
       translateImage(imageDataUrl, imageMimeType, screenTitle, {
         tgtLang: newTarget,
       });
@@ -378,6 +481,31 @@ export default function App() {
     setBlocks((prev) =>
       prev.map((b) => (b.id === id ? { ...b, translatedText: newTranslatedText } : b))
     );
+    setTranslatedVariants((prev) => {
+      const current = prev[targetLang];
+      if (!current) return prev;
+      return {
+        ...prev,
+        [targetLang]: {
+          ...current,
+          blocks: current.blocks.map((b) =>
+            b.id === id ? { ...b, translatedText: newTranslatedText } : b
+          ),
+        },
+      };
+    });
+  };
+
+  const handleDownloadTranslated = async () => {
+    if (!imageDataUrl || blocks.length === 0) return;
+    try {
+      const safeName = `${screenTitle.replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 32) || "ekran"}-${targetLang}.png`;
+      await exportTranslatedImage(imageDataUrl, blocks, safeName);
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : "Tarjima rasmini saqlab bo'lmadi."
+      );
+    }
   };
 
   const handleRestoreHistory = (item: HistoryItem) => {
@@ -390,6 +518,16 @@ export default function App() {
     setSummary(item.summary);
     setBlocks(item.blocks);
     setDurationMs(item.durationMs);
+    setTranslatedVariants({
+      [item.targetLang]: {
+        targetLang: item.targetLang,
+        targetLangName: item.targetLangName,
+        detectedLanguage: item.detectedLanguage,
+        summary: item.summary,
+        blocks: item.blocks,
+        durationMs: item.durationMs,
+      },
+    });
     setSelectedBlockId(null);
     setErrorMessage(null);
     setActiveTab("translator");
@@ -450,7 +588,7 @@ export default function App() {
                 {/* Language Controls */}
                 <div className="flex flex-wrap items-center gap-2">
                   <LanguageSelector
-                    ariaLabel="Manba tili"
+                    ariaLabel={t.sourceLangAria}
                     value={sourceLang}
                     onChange={setSourceLang}
                     options={SOURCE_LANGUAGES}
@@ -459,14 +597,14 @@ export default function App() {
                   <button
                     type="button"
                     onClick={handleSwapLanguages}
-                    aria-label="Tillarni almashtirish"
+                    aria-label={t.swapLangAria}
                     className="min-h-[42px] min-w-[42px] flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-[#2563EB] hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                   >
                     <ArrowLeftRight className="w-4 h-4" />
                   </button>
 
                   <LanguageSelector
-                    ariaLabel="Tarjima tili"
+                    ariaLabel={t.targetLangAria}
                     value={targetLang}
                     onChange={handleTargetLangChange}
                     options={TARGET_LANGUAGES}
@@ -479,9 +617,9 @@ export default function App() {
                   <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-[#0B0F17] rounded-xl">
                     {(
                       [
-                        { id: "overlay", label: "Ustma-ust" },
-                        { id: "split", label: "Yonma-yon" },
-                        { id: "list", label: "Ro'yxat" },
+                        { id: "overlay", label: t.viewOverlay },
+                        { id: "split", label: t.viewSplit },
+                        { id: "list", label: t.viewList },
                       ] as Array<{ id: ViewMode; label: string }>
                     ).map((mode) => (
                       <button
@@ -506,7 +644,7 @@ export default function App() {
                       className="px-3 py-2 min-h-[40px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                     >
                       <Camera className="w-4 h-4" />
-                      <span>Kamera</span>
+                      <span>{t.camera}</span>
                     </button>
                     {typeof navigator !== "undefined" &&
                       Boolean(navigator.mediaDevices?.getDisplayMedia) && (
@@ -516,7 +654,7 @@ export default function App() {
                           className="px-3 py-2 min-h-[40px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                         >
                           <Monitor className="w-4 h-4" />
-                          <span>Ekran ulashish</span>
+                          <span>{t.screenShare}</span>
                         </button>
                       )}
                   </div>
@@ -526,7 +664,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setIsDark((prev) => !prev)}
-                    aria-label={isDark ? "Yorug' rejim" : "Tungi rejim"}
+                    aria-label={isDark ? t.themeLightAria : t.themeDarkAria}
                     className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                   >
                     {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -538,14 +676,14 @@ export default function App() {
               <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-1.5 overflow-x-auto">
                   <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap mr-1">
-                    Uslub:
+                    {t.nicheLabel}
                   </span>
                   {(
                     [
-                      { id: "general", label: "Umumiy" },
-                      { id: "ecommerce", label: "1688 / Taobao / Trendyol" },
-                      { id: "finance", label: "Bank va Rasmiy" },
-                      { id: "travel", label: "Sayohat va Menyu" },
+                      { id: "general", label: t.nicheGeneral },
+                      { id: "ecommerce", label: t.nicheEcommerce },
+                      { id: "finance", label: t.nicheFinance },
+                      { id: "travel", label: t.nicheTravel },
                     ] as Array<{ id: NicheMode; label: string }>
                   ).map((n) => (
                     <button
@@ -563,41 +701,43 @@ export default function App() {
                   ))}
                 </div>
 
-                <div className="flex items-center gap-3 text-xs">
+                <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 w-full sm:w-auto text-xs">
                   <span className="text-slate-500 dark:text-slate-400 tabular-nums whitespace-nowrap">
                     {isPro
-                      ? "Pro tarif · Cheksiz"
-                      : `Bugungi limit: ${remainingToday} / ${dailyLimit}`}
+                      ? t.proUnlimited
+                      : t.dailyLimitLabel(remainingToday, dailyLimit)}
                   </span>
-                  {!isPro && canWatchAdReward && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {!isPro && canWatchAdReward && (
+                      <button
+                        type="button"
+                        onClick={showRewardedAd}
+                        disabled={isShowingAd}
+                        className="px-3 py-1.5 min-h-[36px] rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] disabled:opacity-50 text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                      >
+                        <PlayCircle className="w-3.5 h-3.5" />
+                        <span>{isShowingAd ? t.adRewardLoading : t.adRewardBtn}</span>
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={showRewardedAd}
-                      disabled={isShowingAd}
-                      className="px-3 py-1.5 min-h-[34px] rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] disabled:opacity-50 text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                      onClick={() => setIsPricingOpen(true)}
+                      className="px-3 py-1.5 min-h-[36px] rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 hover:border-[#2563EB] text-xs font-semibold text-slate-800 dark:text-slate-100 inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                     >
-                      <PlayCircle className="w-3.5 h-3.5" />
-                      <span>{isShowingAd ? "Yuklanmoqda..." : "+2 (Reklama)"}</span>
+                      {isPro ? (
+                        <UserIcon className="w-3.5 h-3.5 text-[#2563EB]" />
+                      ) : (
+                        <Crown className="w-3.5 h-3.5 text-[#2563EB]" />
+                      )}
+                      <span>
+                        {user
+                          ? isPro
+                            ? t.accountBtn
+                            : t.getProBtn
+                          : t.signInProBtn}
+                      </span>
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setIsPricingOpen(true)}
-                    className="px-3 py-1.5 min-h-[34px] rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 hover:border-[#2563EB] text-xs font-semibold text-slate-800 dark:text-slate-100 inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-                  >
-                    {isPro ? (
-                      <UserIcon className="w-3.5 h-3.5 text-[#2563EB]" />
-                    ) : (
-                      <Crown className="w-3.5 h-3.5 text-[#2563EB]" />
-                    )}
-                    <span>
-                      {user
-                        ? isPro
-                          ? "Akkaunt"
-                          : "Pro olish"
-                        : "Kirish / Pro"}
-                    </span>
-                  </button>
+                  </div>
                 </div>
               </div>
             </section>
@@ -611,7 +751,7 @@ export default function App() {
                   onClick={clearAdMessage}
                   className="font-medium text-[#2563EB] hover:underline cursor-pointer shrink-0"
                 >
-                  Yopish
+                  {t.closeBtn}
                 </button>
               </div>
             )}
@@ -631,10 +771,19 @@ export default function App() {
                     type="button"
                     onClick={showRewardedAd}
                     disabled={isShowingAd}
-                    className="px-3 py-1.5 min-h-[34px] rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] disabled:opacity-50 text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer shrink-0"
+                    className="px-3 py-1.5 min-h-[36px] rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] disabled:opacity-50 text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer shrink-0"
                   >
                     <PlayCircle className="w-3.5 h-3.5" />
-                    <span>{isShowingAd ? "Yuklanmoqda..." : "Reklama ko'rish (+2)"}</span>
+                    <span>{isShowingAd ? t.adRewardLoading : t.adRewardWatchBtn}</span>
+                  </button>
+                )}
+                {canTranslate && imageDataUrl && !isTranslating && (
+                  <button
+                    type="button"
+                    onClick={() => translateImage(imageDataUrl, imageMimeType, screenTitle)}
+                    className="px-3 py-1.5 min-h-[36px] rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-semibold cursor-pointer shrink-0 whitespace-nowrap"
+                  >
+                    {t.retryBtn}
                   </button>
                 )}
                 <button
@@ -642,7 +791,7 @@ export default function App() {
                   onClick={() => setErrorMessage(null)}
                   className="text-xs font-medium underline cursor-pointer shrink-0"
                 >
-                  Yopish
+                  {t.closeBtn}
                 </button>
               </div>
             )}
@@ -661,7 +810,7 @@ export default function App() {
                       className="text-xs font-medium text-[#2563EB] hover:underline inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
                     >
                       <Upload className="w-3.5 h-3.5" />
-                      <span>Almashtirish</span>
+                      <span>{t.replaceBtn}</span>
                     </button>
                   </div>
                   <img
@@ -697,6 +846,10 @@ export default function App() {
                     overlayOpacity={overlayOpacity}
                     onOverlayOpacityChange={setOverlayOpacity}
                     isTranslating={isTranslating}
+                    translatedVariants={Object.values(translatedVariants)}
+                    activeTargetLang={targetLang}
+                    onSelectVariant={handleSelectVariant}
+                    onDownloadTranslated={handleDownloadTranslated}
                     onUploadFile={handleFileUpload}
                     onSelectSample={handleSelectSample}
                     onOpenCamera={() => setCaptureModalMode("camera")}
@@ -710,6 +863,7 @@ export default function App() {
                     onClearScreen={() => {
                       setImageDataUrl(null);
                       setBlocks([]);
+                      setTranslatedVariants({});
                       setSummary("");
                       setDetectedLanguage("");
                       setDurationMs(null);

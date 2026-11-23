@@ -1,5 +1,6 @@
 import React from "react";
 import { Camera, Clock, HelpCircle, Languages } from "lucide-react";
+import { useUiLang } from "../contexts/UiLangContext";
 import type { AppTab } from "../types/translator";
 
 interface MobileBottomNavProps {
@@ -13,9 +14,11 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onTabChange,
   onOpenCamera,
 }) => {
+  const { t } = useUiLang();
+
   return (
     <nav
-      aria-label="Mobil navigatsiya"
+      aria-label={t.navTranslator}
       className="md:hidden fixed bottom-0 left-0 right-0 z-40 h-14 bg-white/95 dark:bg-[#0F1521]/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 grid grid-cols-4 items-center px-2"
     >
       <button
@@ -28,7 +31,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         }`}
       >
         <Languages className="w-5 h-5" />
-        <span className="text-[11px] font-medium leading-none whitespace-nowrap">Tarjimon</span>
+        <span className="text-[11px] font-medium leading-none whitespace-nowrap">{t.navTranslator}</span>
       </button>
 
       <button
@@ -37,7 +40,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         className="min-h-[44px] flex flex-col items-center justify-center gap-0.5 rounded-lg text-slate-600 dark:text-slate-300 hover:text-[#2563EB] transition-colors cursor-pointer"
       >
         <Camera className="w-5 h-5" />
-        <span className="text-[11px] font-medium leading-none whitespace-nowrap">Kamera</span>
+        <span className="text-[11px] font-medium leading-none whitespace-nowrap">{t.navCamera}</span>
       </button>
 
       <button
@@ -50,7 +53,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         }`}
       >
         <Clock className="w-5 h-5" />
-        <span className="text-[11px] font-medium leading-none whitespace-nowrap">Tarix</span>
+        <span className="text-[11px] font-medium leading-none whitespace-nowrap">{t.navHistory}</span>
       </button>
 
       <button
@@ -63,7 +66,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         }`}
       >
         <HelpCircle className="w-5 h-5" />
-        <span className="text-[11px] font-medium leading-none whitespace-nowrap">Qo'llanma</span>
+        <span className="text-[11px] font-medium leading-none whitespace-nowrap">{t.navGuide}</span>
       </button>
     </nav>
   );

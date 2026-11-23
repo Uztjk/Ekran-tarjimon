@@ -74,6 +74,15 @@ export interface TranslationResult {
   durationMs: number;
 }
 
+export interface TranslatedVariant {
+  targetLang: string;
+  targetLangName: string;
+  detectedLanguage: string;
+  summary: string;
+  blocks: TextBlock[];
+  durationMs: number | null;
+}
+
 export interface HistoryItem {
   id: string;
   createdAt: number;

@@ -526,9 +526,12 @@ export async function prepareImageForUpload(
   fileOrDataUrl: File | string,
   maxDimension = 1280
 ): Promise<{ dataUrl: string; mimeType: string; width: number; height: number }> {
+  let objectUrl: string | null = null;
   const srcUrl =
     typeof fileOrDataUrl === "string"
       ? fileOrDataUrl
+      : typeof URL !== "undefined" && typeof URL.createObjectURL === "function"
+      ? (objectUrl = URL.createObjectURL(fileOrDataUrl))
       : await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => resolve(String(reader.result));
@@ -536,12 +539,19 @@ export async function prepareImageForUpload(
           reader.readAsDataURL(fileOrDataUrl);
         });
 
-  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("Tasvir formati noto'g'ri."));
-    image.src = srcUrl;
-  });
+  let img: HTMLImageElement;
+  try {
+    img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("Tasvir formati noto'g'ri."));
+      image.src = srcUrl;
+    });
+  } finally {
+    if (objectUrl) {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
 
   let { width, height } = img;
   if (width > maxDimension || height > maxDimension) {

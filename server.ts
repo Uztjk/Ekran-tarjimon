@@ -9,8 +9,8 @@ dotenv.config();
 
 const PORT = Number(process.env.PORT) || 3000;
 const MODEL_CANDIDATES = [
-  "gemini-4-hydrogen",
   "gemini-3.1-flash-lite",
+  "gemini-4-hydrogen",
 ] as const;
 
 function getGeminiClient(): GoogleGenAI {
@@ -138,6 +138,7 @@ function summarizeErrCode(err: unknown): string {
 }
 
 const errorTraceMap = new WeakMap<object, string>();
+const successTraceMap = new WeakMap<object, string>();
 
 async function generateWithModelFallback(
   ai: GoogleGenAI,
@@ -148,20 +149,27 @@ async function generateWithModelFallback(
 ) {
   let lastErr: unknown;
   const attempts: string[] = [];
-  const backoffDelaysMs = [0, 1500, 3000];
+  const overallStart = Date.now();
+  const backoffDelaysMs = [0, 1200];
 
   for (let round = 0; round < backoffDelaysMs.length; round += 1) {
+    if (round > 0 && Date.now() - overallStart > 28000) {
+      break;
+    }
     if (backoffDelaysMs[round] > 0) {
       await new Promise((r) => setTimeout(r, backoffDelaysMs[round]));
     }
     for (const model of MODEL_CANDIDATES) {
+      if (Date.now() - overallStart > 58000) {
+        break;
+      }
       const t0 = Date.now();
       try {
         const config = params.config ? { ...params.config } : undefined;
         if (config && model !== "gemini-4-hydrogen") {
           delete config.thinkingConfig;
         }
-        const timeoutMs = model === "gemini-4-hydrogen" ? 35000 : 25000;
+        const timeoutMs = model === "gemini-3.1-flash-lite" ? 38000 : 32000;
         const result = await withTimeout(
           ai.models.generateContent({
             model,
@@ -172,6 +180,9 @@ async function generateWithModelFallback(
           model
         );
         attempts.push(`${model}:ok(${Date.now() - t0}ms)`);
+        if (result && typeof result === "object") {
+          successTraceMap.set(result, attempts.join(", "));
+        }
         return result;
       } catch (err) {
         lastErr = err;
@@ -402,6 +413,8 @@ Rules:
         });
 
       const durationMs = Date.now() - startTime;
+      const trace = response && typeof response === "object" ? successTraceMap.get(response) : undefined;
+      if (trace) res.setHeader("X-Gemini-Trace", trace);
 
       res.json({
         detectedLanguage: parsed.detectedLanguage || "Aniqlangan",
@@ -462,6 +475,8 @@ ${text.trim()}
       });
 
       const parsed = JSON.parse(extractCleanJson(response.text ?? "{}"));
+      const trace = response && typeof response === "object" ? successTraceMap.get(response) : undefined;
+      if (trace) res.setHeader("X-Gemini-Trace", trace);
       res.json({
         translatedText: parsed.translatedText || text,
         detectedLanguage: parsed.detectedLanguage || "Aniqlangan",

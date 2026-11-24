@@ -199,7 +199,7 @@ export default function App() {
 
         for (let attempt = 0; attempt < 2; attempt += 1) {
           const controller = new AbortController();
-          const timer = window.setTimeout(() => controller.abort(), 75000);
+          const timer = window.setTimeout(() => controller.abort(), 95000);
           try {
             const res = await fetch("/api/translate-screen", {
               method: "POST",
@@ -279,7 +279,7 @@ export default function App() {
               durationMs: ms,
             },
           }));
-          await consumeQuota();
+          consumeQuota().catch(() => {});
           logTranslationToCloud({
             title,
             nicheMode,

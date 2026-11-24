@@ -524,7 +524,7 @@ export const SAMPLE_SCREENS: SampleScreenPreset[] = [
 
 export async function prepareImageForUpload(
   fileOrDataUrl: File | string,
-  maxDimension = 1280
+  maxDimension = 1024
 ): Promise<{ dataUrl: string; mimeType: string; width: number; height: number }> {
   let objectUrl: string | null = null;
   const srcUrl =
@@ -568,7 +568,7 @@ export async function prepareImageForUpload(
     return { dataUrl: srcUrl, mimeType: "image/png", width: img.width, height: img.height };
   }
   ctx.drawImage(img, 0, 0, width, height);
-  const dataUrl = canvas.toDataURL("image/jpeg", 0.84);
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
   return { dataUrl, mimeType: "image/jpeg", width, height };
 }
 

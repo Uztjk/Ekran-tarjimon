@@ -13,19 +13,37 @@ const MODEL_CANDIDATES = [
   "gemini-4-hydrogen",
 ] as const;
 
-function getGeminiClient(): GoogleGenAI {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
+function getGeminiClients(): GoogleGenAI[] {
+  const rawKeys = [
+    process.env.GEMINI_API_KEY,
+    process.env.GEMINI_API_KEY_2,
+    process.env.GEMINI_API_KEY_BACKUP,
+  ]
+    .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+    .flatMap((v) => v.split(/[\s,;]+/))
+    .map((k) => k.trim())
+    .filter(Boolean);
+
+  const uniqueKeys = Array.from(new Set(rawKeys));
+  if (uniqueKeys.length === 0) {
     throw new Error("API_KEY_MISSING");
   }
-  return new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        "User-Agent": "aistudio-build",
-      },
-    },
-  });
+
+  return uniqueKeys.map(
+    (apiKey) =>
+      new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
+        },
+      })
+  );
+}
+
+function getGeminiClient(): GoogleGenAI {
+  return getGeminiClients()[0];
 }
 
 interface TranslateScreenBody {
@@ -71,14 +89,14 @@ function parseErrorResponse(err: unknown): { status: number; message: string } {
     return {
       status: 429,
       message:
-        "So'rovlar limiti tugadi. Biroz kutib qayta urinib ko'ring yoki Settings > Secrets panelidan tarifni yangilang.",
+        "Tarjima xizmati hozir band (so'rovlar limiti). 15–20 soniya kutib «Qayta urinish» tugmasini bosing.",
     };
   }
   if (raw.includes("503") || raw.includes("UNAVAILABLE") || raw.includes("high demand")) {
     return {
       status: 503,
       message:
-        "Tarjima serveri hozir juda band. Iltimos, bir necha soniyadan so'ng qayta urinib ko'ring.",
+        "Tarjima serveri hozir juda band. Bir necha soniyadan so'ng «Qayta urinish» tugmasini bosing.",
     };
   }
   if (raw.includes("NOT_FOUND") || raw.includes("404")) {
@@ -141,73 +159,90 @@ const errorTraceMap = new WeakMap<object, string>();
 const successTraceMap = new WeakMap<object, string>();
 
 async function generateWithModelFallback(
-  ai: GoogleGenAI,
+  aiOrClients: GoogleGenAI | GoogleGenAI[],
   params: {
     contents: Parameters<GoogleGenAI["models"]["generateContent"]>[0]["contents"];
     config?: Record<string, unknown>;
   }
 ) {
+  const clients = Array.isArray(aiOrClients) ? aiOrClients : [aiOrClients];
   let lastErr: unknown;
+  let primary503Err: unknown = null;
   const attempts: string[] = [];
+  const exhaustedPairs = new Set<string>();
   const overallStart = Date.now();
-  const backoffDelaysMs = [0, 1200];
+  const backoffDelaysMs = [0, 1400, 2600];
 
   for (let round = 0; round < backoffDelaysMs.length; round += 1) {
-    if (round > 0 && Date.now() - overallStart > 28000) {
+    if (round > 0 && Date.now() - overallStart > 35000) {
       break;
     }
     if (backoffDelaysMs[round] > 0) {
       await new Promise((r) => setTimeout(r, backoffDelaysMs[round]));
     }
-    for (const model of MODEL_CANDIDATES) {
-      if (Date.now() - overallStart > 58000) {
-        break;
-      }
-      const t0 = Date.now();
-      try {
-        const config = params.config ? { ...params.config } : undefined;
-        if (config && model !== "gemini-4-hydrogen") {
-          delete config.thinkingConfig;
+    for (let keyIdx = 0; keyIdx < clients.length; keyIdx += 1) {
+      const ai = clients[keyIdx];
+      for (const model of MODEL_CANDIDATES) {
+        if (Date.now() - overallStart > 58000) {
+          break;
         }
-        const timeoutMs = model === "gemini-3.1-flash-lite" ? 38000 : 32000;
-        const result = await withTimeout(
-          ai.models.generateContent({
-            model,
-            contents: params.contents,
-            config,
-          }),
-          timeoutMs,
-          model
-        );
-        attempts.push(`${model}:ok(${Date.now() - t0}ms)`);
-        if (result && typeof result === "object") {
-          successTraceMap.set(result, attempts.join(", "));
+        const pairKey = `${keyIdx}:${model}`;
+        if (exhaustedPairs.has(pairKey)) {
+          continue;
         }
-        return result;
-      } catch (err) {
-        lastErr = err;
-        const code = summarizeErrCode(err);
-        attempts.push(`${model}:${code}(${Date.now() - t0}ms)`);
-        const msg = (err instanceof Error ? err.message : String(err))
-          .replace(/AIza[0-9A-Za-z_-]{10,}/g, "[REDACTED]")
-          .slice(0, 220);
-        console.warn(`[Gemini fallback r${round + 1}] Model ${model} failed:`, msg);
-        if (!isFallbackableModelError(err)) {
-          if (err && typeof err === "object") {
-            errorTraceMap.set(err, attempts.join(", "));
+        const t0 = Date.now();
+        try {
+          const config = params.config ? { ...params.config } : undefined;
+          if (config && model !== "gemini-4-hydrogen") {
+            delete config.thinkingConfig;
           }
-          throw err;
+          const timeoutMs = model === "gemini-3.1-flash-lite" ? 36000 : 28000;
+          const result = await withTimeout(
+            ai.models.generateContent({
+              model,
+              contents: params.contents,
+              config,
+            }),
+            timeoutMs,
+            model
+          );
+          attempts.push(`${model}:ok(${Date.now() - t0}ms)`);
+          if (result && typeof result === "object") {
+            successTraceMap.set(result, attempts.join(", "));
+          }
+          return result;
+        } catch (err) {
+          lastErr = err;
+          const code = summarizeErrCode(err);
+          attempts.push(`${model}:${code}(${Date.now() - t0}ms)`);
+          if (model === MODEL_CANDIDATES[0] && code === "503") {
+            primary503Err = err;
+          }
+          if (model !== MODEL_CANDIDATES[0] && code === "429") {
+            exhaustedPairs.add(pairKey);
+          }
+          const msg = (err instanceof Error ? err.message : String(err))
+            .replace(/AIza[0-9A-Za-z_-]{10,}/g, "[REDACTED]")
+            .slice(0, 220);
+          console.warn(`[Gemini fallback r${round + 1}] Model ${model} failed:`, msg);
+          if (!isFallbackableModelError(err)) {
+            if (err && typeof err === "object") {
+              errorTraceMap.set(err, attempts.join(", "));
+            }
+            throw err;
+          }
+          await new Promise((r) => setTimeout(r, 200));
         }
-        await new Promise((r) => setTimeout(r, 250));
       }
     }
   }
+  const finalErr = primary503Err ?? lastErr;
   const trace = attempts.join(", ");
   console.error("[Gemini fallback exhausted]", trace);
-  if (lastErr && typeof lastErr === "object") {
-    errorTraceMap.set(lastErr, trace);
+  if (finalErr && typeof finalErr === "object") {
+    errorTraceMap.set(finalErr, trace);
   }
-  throw lastErr;
+  throw finalErr;
 }
 
 function extractCleanJson(text: string): string {
@@ -268,7 +303,7 @@ async function startServer() {
 
       const safeMimeType = normalizeImageMime(mimeType);
       const cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
-      const ai = getGeminiClient();
+      const ai = getGeminiClients();
 
       const sourceInstruction =
         sourceLang === "auto"
@@ -447,7 +482,7 @@ Rules:
         return;
       }
 
-      const ai = getGeminiClient();
+      const ai = getGeminiClients();
       const response = await generateWithModelFallback(ai, {
         contents: `Source language: ${sourceLang === "auto" ? "Auto-detect" : sourceLangName}.
 Target language: ${targetLangName} (${targetLang}).
@@ -1202,7 +1237,7 @@ ${text.trim()}
           });
         } else if (rawText && !rawText.startsWith("/")) {
           try {
-            const ai = getGeminiClient();
+            const ai = getGeminiClients();
             const reply = await generateWithModelFallback(ai, {
               contents: `Translate the following message naturally into Uzbek (or if it is already in Uzbek, translate it into clear English). Keep it concise and helpful:\n\n"""\n${rawText.slice(0, 600)}\n"""`,
               config: {
